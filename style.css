@@ -110,6 +110,17 @@ input[type='text'], select, textarea {
   font: inherit;
 }
 textarea { resize: vertical; line-height: 1.45; font-size: 15px; }
+/* A select sizes itself to its longest option; keep it (and its arrow) inside the panel */
+select {
+  width: 100%;
+  min-width: 0;
+  appearance: none;
+  padding-right: 32px;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23F2F0EC' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
 input[type='text']:focus, select:focus, textarea:focus { outline: 2px solid var(--navy); border-color: var(--light-blue); }
 input[type='range'] { accent-color: var(--light-blue); }
 
@@ -144,7 +155,7 @@ input[type='range'] { accent-color: var(--light-blue); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .button-row { display: flex; gap: 8px; }
-.button-row > .btn { flex: 1; }
+.button-row > .btn { flex: 1; min-width: 0; } /* buttons share the row instead of pushing past the panel edge */
 .button-row + .button-row { margin-top: 8px; }
 .button-row.wrap { flex-wrap: wrap; }
 .button-row.wrap > .btn { flex: 0 0 auto; }
