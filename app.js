@@ -1,9 +1,9 @@
 import JSZip from 'jszip';
 import { parseRequestFile, extractCommunicatorLastName, serviceDateCode } from './src/requests.js';
-import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS } from './src/slides.js';
+import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides } from './src/slides.js';
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
-import { fetchChapter, compareVerse, isNivTranslation } from './src/bible.js';
+import { fetchChapter, compareVerse, isNivTranslation, translationName, TRANSLATIONS } from './src/bible.js';
 import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
 import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
 import { exportBundle } from './src/propresenter.js';
@@ -176,7 +176,7 @@ async function verifyScripture() {
     if (!verse) {
       if (fetched[key] === null && !seen.has(key)) {
         seen.add(key);
-        slide.checks = [...slide.checks, `Couldn't reach Bolls to check ${slide.reference} against the ${slide.ref.translation}.`];
+        slide.checks = [...slide.checks, { esv: true, text: `Couldn't reach Bolls to check ${slide.reference} against the ${translationName(slide.ref.translation)}.` }];
       }
       next.push(slide);
       continue;
@@ -189,17 +189,17 @@ async function verifyScripture() {
     const whole = !slide.parts || slide.parts === 1;
     if (result.kind === 'differs') {
       mismatches += first ? 1 : 0;
-      if (first) slide.checks = [...slide.checks, { danger: true, text: `Verse ${slide.ref.verse} doesn’t match the ${slide.ref.translation}. Compare in the editor.` }];
+      if (first) slide.checks = [...slide.checks, { esv: true, danger: true, text: `Verse ${slide.ref.verse} doesn’t match the ${translationName(slide.ref.translation)}. Compare in the editor.` }];
       next.push(slide);
     } else if (result.kind === 'spacing' && whole && !slide.edited) {
       changed += 1;
-      next.push(...relayout([{ ...slide, source: verse.text, verseText: verse.text, checks: [...slide.checks, `Verse ${slide.ref.verse}: fixed spacing to match the ${slide.ref.translation}.`] }]));
+      next.push(...relayout([{ ...slide, source: verse.text, verseText: verse.text, checks: [...slide.checks, { esv: true, text: `Verse ${slide.ref.verse}: fixed spacing to match the ${translationName(slide.ref.translation)}.` }] }]));
     } else if (result.kind === 'partial' && whole && !slide.edited && result.rest) {
       changed += 1;
       const source = `${slide.source} {${result.rest}}`;
-      next.push(...relayout([{ ...slide, source, checks: [...slide.checks, `Verse ${slide.ref.verse} is quoted in part; the rest of the verse is dimmed.`] }]));
+      next.push(...relayout([{ ...slide, source, checks: [...slide.checks, { esv: true, text: `Verse ${slide.ref.verse} is quoted in part; the rest of the verse is dimmed.` }] }]));
     } else {
-      if (result.kind !== 'same' && first) slide.checks = [...slide.checks, `Verse ${slide.ref.verse} differs slightly from the ${slide.ref.translation}. Compare in the editor.`];
+      if (result.kind !== 'same' && first) slide.checks = [...slide.checks, { esv: true, text: `Verse ${slide.ref.verse} differs slightly from the ${translationName(slide.ref.translation)}. Compare in the editor.` }];
       next.push(slide);
     }
   }
@@ -453,6 +453,16 @@ function renderEditor() {
   if (!slide) return;
   $('editor-position').textContent = `Slide ${state.active + 1} of ${state.slides.length}`;
   $('edit-kind').value = slide.kind;
+  const scripture = slide.kind === 'scripture' && slide.ref;
+  $('translation-field').hidden = !scripture;
+  if (scripture) {
+    const source = slide.ref.sourceTranslation;
+    $('edit-translation').innerHTML = Object.entries(TRANSLATIONS)
+      .map(([code, name]) => `<option value="${code}">${name}${code === source ? ' (manuscript)' : ''}${isNivTranslation(code) && code !== source ? ' (type it in)' : ''}</option>`)
+      .join('');
+    $('edit-translation').value = slide.ref.translation;
+  }
+  $('btn-use-esv').textContent = scripture ? `Use ${translationName(slide.ref.translation)} text` : 'Use ESV text';
   $('btn-relayout').disabled = !slide.layout || slide.kind === 'blank';
   $('btn-dim').disabled = !slide.layout || slide.kind === 'blank';
 
@@ -462,7 +472,7 @@ function renderEditor() {
   compare.hidden = !showEsv;
   $('btn-use-esv').hidden = !showEsv;
   if (showEsv) {
-    compare.innerHTML = `<strong>${escapeHtml(slide.ref.translation)} (Bolls) · verse ${slide.ref.verse}</strong>${escapeHtml(slide.esv.text)}
+    compare.innerHTML = `<strong>${escapeHtml(translationName(slide.ref.translation))} (Bolls) · verse ${slide.ref.verse}</strong>${escapeHtml(slide.esv.text)}
       <strong style="margin-top:8px">Manuscript</strong>${escapeHtml(slide.verseText)}`;
   }
 
@@ -674,7 +684,65 @@ function useEsvText() {
   const laid = relayout([{ ...slide, source: slide.esv.text, verseText: slide.esv.text, esv: { ...slide.esv, kind: 'same' }, edited: false, checks: slide.checks.filter(c => !(typeof c === 'object' && c.danger)) }]);
   state.slides.splice(state.active, 1, ...laid);
   renderAll();
-  showToast(`Now using the ${slide.ref.translation} text from Bolls.`);
+  showToast(`Now using the ${translationName(slide.ref.translation)} text from Bolls.`);
+}
+
+/**
+ * Switch the active slide's passage to another translation, like porch_slides'
+ * per-slide translation picker. Text comes from the manuscript when switching
+ * back to the request file's translation, otherwise from Bolls. Bolls doesn't
+ * serve the NIV, so NIV verses become "text needed" slides to type into.
+ */
+async function changeTranslation(code) {
+  const slide = activeSlide();
+  if (!slide?.ref || code === slide.ref.translation) return;
+  const start = state.slides.findIndex(s => s.group === slide.group);
+  let end = start;
+  while (end + 1 < state.slides.length && state.slides[end + 1].group === slide.group) end += 1;
+  const group = state.slides.slice(start, end + 1);
+  if (group.some(s => s.edited) && !confirm('Switching translations replaces this passage’s text, including your edits. Continue?')) {
+    $('edit-translation').value = slide.ref.translation;
+    return;
+  }
+
+  // One entry per verse, in order, with the manuscript's text for that verse
+  const verses = [];
+  for (const s of group) {
+    if (!verses.some(v => v.n === s.ref.verse)) verses.push({ n: s.ref.verse, manuscript: s.manuscript ?? s.verseText ?? '' });
+  }
+  let missing = 0;
+  if (code === slide.ref.sourceTranslation) {
+    verses.forEach(v => (v.text = v.manuscript));
+  } else if (isNivTranslation(code)) {
+    verses.forEach(v => (v.text = ''));
+    missing = verses.length;
+  } else {
+    $('translation-field').classList.add('busy');
+    const chapter = await fetchChapter(slide.ref.bookId, slide.ref.chapter, code);
+    $('translation-field').classList.remove('busy');
+    if (!chapter) {
+      showToast(`Couldn’t get the ${translationName(code)} from Bolls. Check the connection and try again.`, 'warn', 6000);
+      $('edit-translation').value = slide.ref.translation;
+      return;
+    }
+    for (const v of verses) {
+      v.text = chapter.find(c => c.verse === v.n)?.text || '';
+      if (!v.text) missing += 1;
+    }
+  }
+
+  const cues = group.flatMap(s => s.cues);
+  const rebuilt = relayout(passageSlides(group[0], verses, code, cues));
+  if (missing) {
+    rebuilt[0].checks = [...rebuilt[0].checks, { esv: true, danger: true, text: isNivTranslation(code)
+      ? `Bolls doesn’t carry the ${translationName(code)}; type or paste the verse text on each slide.`
+      : `${missing} verse${missing === 1 ? '' : 's'} weren’t found in the ${translationName(code)}.` }];
+  }
+  const offset = state.active - start;
+  state.slides.splice(start, group.length, ...rebuilt);
+  state.active = start + Math.min(offset, rebuilt.length - 1);
+  renderAll();
+  showToast(`${slide.ref.label} is now in the ${translationName(code)}.`);
 }
 
 // ---------- File names ----------
@@ -974,6 +1042,7 @@ function bindEvents() {
   $('btn-dim').addEventListener('click', toggleDim);
   $('btn-relayout').addEventListener('click', autoLineBreaks);
   $('btn-use-esv').addEventListener('click', useEsvText);
+  $('edit-translation').addEventListener('change', e => changeTranslation(e.target.value));
   $('btn-split').addEventListener('click', splitAtCursor);
   $('btn-merge').addEventListener('click', mergeWithNext);
   $('btn-insert-blank').addEventListener('click', () => insertSlide(state.active + 1, blankSlide()));

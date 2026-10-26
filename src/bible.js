@@ -96,15 +96,48 @@ Object.keys(BOOK_MAP).forEach(key => {
   }
 });
 
-// Bolls database names for the translations we can request
-const TRANSLATION_MAP = {
+// Translations offered in the editor, as Bolls database codes -> how slides print them
+// (same list as porch_slides)
+export const TRANSLATIONS = {
+  ESV: 'ESV',
+  KJV: 'KJV',
+  NIV2011: 'NIV',
+  NIV: 'NIV 84',
+  NASB: 'NASB',
+  NASB_1995: 'NASB 1995',
+  NLT: 'NLT',
+  ASV: 'ASV',
+  CSB17: 'CSB',
+};
+
+// What request files and manuscripts write -> Bolls code
+const TRANSLATION_ALIASES = {
   esv: 'ESV',
   kjv: 'KJV',
   niv: 'NIV2011',
+  niv2011: 'NIV2011',
+  'niv 84': 'NIV',
+  niv84: 'NIV',
   nasb: 'NASB',
+  'nasb 1995': 'NASB_1995',
+  nasb1995: 'NASB_1995',
+  nasb_1995: 'NASB_1995',
   nlt: 'NLT',
+  asv: 'ASV',
   csb: 'CSB17',
+  csb17: 'CSB17',
 };
+
+/** "NIV" -> "NIV2011", "csb" -> "CSB17"; unknown names come back uppercased. */
+export function normalizeTranslation(raw) {
+  const key = (raw || 'ESV').trim().toLowerCase();
+  return TRANSLATION_ALIASES[key] || key.toUpperCase();
+}
+
+/** How a translation code prints on a slide: "NIV2011" -> "NIV". */
+export function translationName(code) {
+  return TRANSLATIONS[code] || code;
+}
 
 // Job, Psalms, Proverbs, Song of Solomon, Lamentations
 const POETIC_BOOK_IDS = new Set([18, 19, 20, 22, 25]);
@@ -118,6 +151,7 @@ export function isPoeticBook(bookId) {
   return POETIC_BOOK_IDS.has(Number(bookId));
 }
 
+/** Bolls no longer serves the NIV, so NIV text has to come from the manuscript or be typed in. */
 export function isNivTranslation(t) {
   return /^NIV/i.test((t || '').trim());
 }
@@ -142,7 +176,7 @@ export function parseReference(raw, defaultTranslation = 'ESV') {
     startVerse,
     endChapter,
     endVerse,
-    translation: (m[6] || defaultTranslation).trim().toUpperCase(),
+    translation: normalizeTranslation(m[6] || defaultTranslation),
   };
 }
 
@@ -286,8 +320,9 @@ function isUsableChapterData(data) {
  * caller falls back to the manuscript text ("text needed").
  */
 export async function fetchChapter(bookId, chapter, translation = 'ESV') {
-  const code = TRANSLATION_MAP[translation.toLowerCase()] || translation.toUpperCase();
+  let code = normalizeTranslation(translation);
   if (isNivTranslation(code)) return null;
+  if (code === 'NASB_1995') code = 'NASB';
   const cacheKey = `${code}_${bookId}_${chapter}`;
   if (chapterCache[cacheKey]) return chapterCache[cacheKey];
 
@@ -303,7 +338,7 @@ export async function fetchChapter(bookId, chapter, translation = 'ESV') {
       if (!res.ok) throw new Error(`Bolls returned ${res.status}`);
       const data = await res.json();
       if (!isUsableChapterData(data)) return null;
-      const cleaned = data.map(v => ({ verse: v.verse, text: cleanVerseText(v.text || '') }));
+      const cleaned = data.map(v => ({ verse: v.verse, text: cleanVerseText(stripStudyMarkers(v.text || '', code)) }));
       chapterCache[cacheKey] = cleaned;
       return cleaned;
     } catch (err) {
@@ -312,6 +347,21 @@ export async function fetchChapter(bookId, chapter, translation = 'ESV') {
     }
   }
   return null;
+}
+
+/**
+ * Remove study markers some Bolls translations carry (from porch_slides):
+ * Strong's numbers in the KJV (<S>2532</S>) and footnote letters in the CSB.
+ */
+export function stripStudyMarkers(text, code) {
+  if (code === 'KJV') return text.replace(/<S[\s\S]*?<\/S>/gi, '');
+  if (code === 'CSB17') {
+    return text
+      .replace(/<sup[\s\S]*?<\/sup>/gi, '')
+      .replace(/\[[\u24D0-\u24E9\u24B6-\u24CF]\]/gu, '')
+      .replace(/[\u24D0-\u24E9\u24B6-\u24CF]/gu, '');
+  }
+  return text;
 }
 
 /** Fold text for comparison: case, punctuation, quote styles and spacing. */

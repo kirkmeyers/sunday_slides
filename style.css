@@ -378,3 +378,4 @@ input[type='range'] { accent-color: var(--light-blue); }
 
 .stage-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stage-hint { color: var(--muted); font-size: 12px; margin-left: 4px; }
+#translation-field.busy select { opacity: 0.5; pointer-events: none; }

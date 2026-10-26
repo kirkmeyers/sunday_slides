@@ -30,7 +30,8 @@ test('file name helpers', () => {
 test('references print the way Sunday slides do', () => {
   assert.equal(formatReference(parseReference('Psalms 139:16')), 'Psalm 139:16');
   assert.equal(formatReference(parseReference('Acts 27:21-25')), 'Acts 27:21-25');
-  assert.equal(parseReference('Romans 8:18 (NIV)').translation, 'NIV');
+  assert.equal(parseReference('Romans 8:18 (NIV)').translation, 'NIV2011');
+  assert.equal(parseReference('Romans 8:18 (NASB 1995)').translation, 'NASB_1995');
 });
 
 test('splits manuscript text at inline verse numbers', () => {
@@ -123,4 +124,21 @@ test('dims and undims by plain-text offsets', async () => {
   assert.equal(setDim(t, 14, 20, false), 'set sail from Crete and incurred');
   assert.equal(setDim('loss.\nTest', 5, 6, true), 'loss.\nTest'); // a lone line break can't be dimmed
   assert.equal(sliceText('one {two three} four', 4, 13), '{two three}');
+});
+
+test('a translation named in the request file carries to the slide', async () => {
+  const { scriptureReference } = await import('../src/slides.js');
+  const slides = buildSlides(parseRequestFile('# translation: ESV\nScripture: Romans 8:18 (NIV)\n> 18 I consider that our present sufferings\nScripture: John 3:16\n> For God so loved the world'));
+  assert.equal(slides[0].reference, 'Romans 8:18 (NIV)');
+  assert.equal(slides[0].ref.translation, 'NIV2011');
+  assert.equal(slides[1].reference, 'John 3:16');
+  assert.equal(scriptureReference('John 3:16', 'CSB17'), 'John 3:16 (CSB)');
+  const niv = buildSlides(parseRequestFile('# translation: NIV\nScripture: John 3:16\n> For God so loved'));
+  assert.equal(niv[0].reference, 'John 3:16 (NIV)');
+});
+
+test('strips Strong’s numbers and footnote letters from Bolls text', async () => {
+  const { stripStudyMarkers, cleanVerseText } = await import('../src/bible.js');
+  assert.equal(cleanVerseText(stripStudyMarkers('And<S>2532</S> now<S>3569</S> I exhort<S>3867</S> you', 'KJV')), 'And now I exhort you');
+  assert.equal(cleanVerseText(stripStudyMarkers('For God<sup>a</sup> so loved ⓑ the world', 'CSB17')), 'For God so loved the world');
 });

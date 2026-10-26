@@ -8,7 +8,10 @@
  *   group: id shared by slides made from one request entry,
  *   text: slide text (see layout.js for \n and {dim} markup),
  *   reference: reference line (scripture), or the author (quote),
- *   ref: { bookId, chapter, verse, translation } for scripture slides,
+ *   ref: { bookId, chapter, verse, translation, label, sourceTranslation } for
+ *        scripture slides (translation is a Bolls code; label is the reference
+ *        without translation; sourceTranslation is what the request file used),
+ *   manuscript: the request file's text of that verse (scripture),
  *   verseText: the manuscript's text of that verse (scripture),
  *   parts: how many slides one verse was split across (scripture),
  *   source: the text before automatic line breaks, for re-layout,
@@ -18,7 +21,7 @@
  * }
  */
 
-import { parseReference, formatReference, splitVerses, poeticLines, isPoeticBook, smartQuotes } from './bible.js';
+import { parseReference, formatReference, splitVerses, poeticLines, isPoeticBook, smartQuotes, translationName } from './bible.js';
 import { wrapLines, maxLinesFor, balanceLines, avoidShortLastLine, splitToFit, textArea } from './layout.js';
 
 let nextId = 1;
@@ -70,12 +73,37 @@ function makeSlide(kind, fields) {
   };
 }
 
+/** "Romans 8:18" + NIV2011 -> "Romans 8:18 (NIV)". The ESV, Sunday's default, isn't printed. */
+export function scriptureReference(label, translation) {
+  return translation && translation !== 'ESV' ? `${label} (${translationName(translation)})` : label;
+}
+
+/**
+ * Rebuild a passage's slides in another translation, one slide per verse
+ * (before automatic line breaks). `verses` is [{ n, text }]; a verse with no
+ * text becomes a "text needed" slide. Cues stay on the first slide.
+ */
+export function passageSlides(first, verses, translation, cues) {
+  const reference = scriptureReference(first.ref.label, translation);
+  return verses.map((v, i) => makeSlide('scripture', {
+    group: first.group,
+    text: v.text,
+    verseText: v.text,
+    manuscript: v.manuscript,
+    reference,
+    ref: { ...first.ref, verse: v.n, translation },
+    cues: i === 0 ? cues : [],
+    checks: i === 0 ? first.checks.filter(c => !(typeof c === 'object' && c.esv)) : [],
+    needsText: !v.text,
+  }));
+}
+
 /**
  * Build slides from a parsed request file. Line breaks and long-verse splits
  * need font measurement, so they happen afterwards in `layoutSlides`.
  */
 export function buildSlides(parsed) {
-  const translation = (parsed.header.translation || 'ESV').toUpperCase();
+  const translation = parsed.header.translation || 'ESV';
   const slides = [];
   let pendingCues = [];
 
@@ -117,8 +145,8 @@ export function buildSlides(parsed) {
         ? splitVerses(entry.lines.join(' '), ref)
         : { verses: [], startVerse: ref.startVerse, warnings: ['No verse text in the request file; fetch it from Bolls.'] };
       const shownRef = { ...ref, startVerse: split.startVerse };
-      let reference = formatReference(shownRef);
-      if (ref.translation !== 'ESV') reference += ` (${ref.translation})`;
+      const label = formatReference(shownRef);
+      const reference = scriptureReference(label, ref.translation);
       const verses = split.verses.length ? split.verses : [{ n: ref.startVerse, text: '' }];
       verses.forEach((v, i) => {
         add(makeSlide('scripture', {
@@ -126,7 +154,8 @@ export function buildSlides(parsed) {
           text: v.text,
           verseText: v.text, // the manuscript's verse, for checking against the ESV
           reference,
-          ref: { bookId: ref.bookId, chapter: ref.chapter, verse: v.n, translation: ref.translation },
+          ref: { bookId: ref.bookId, chapter: ref.chapter, verse: v.n, translation: ref.translation, label, sourceTranslation: ref.translation },
+          manuscript: v.text,
           // Entry-level notes only on the entry's first slide
           checks: i === 0 ? [...entry.checks, ...split.warnings] : [],
           needsText: !v.text,
