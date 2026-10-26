@@ -146,6 +146,18 @@ async function handleFile(file) {
   await loadRequestText(await file.text(), file.name);
 }
 
+/** Build from text pasted into the Paste requests box (same format as the file). */
+async function buildFromPaste() {
+  const text = $('paste-text').value;
+  if (!text.trim()) {
+    showToast('Paste the requests first.', 'warn');
+    return;
+  }
+  if (state.slides.some(s => s.edited) && !confirm('Replace the current slides? Your edits will be lost.')) return;
+  $('paste-modal').hidden = true;
+  await loadRequestText(text, 'pasted text');
+}
+
 // ---------- Checking scripture against the ESV ----------
 async function verifyScripture() {
   const targets = state.slides.filter(s => s.kind === 'scripture' && s.ref && s.verseText && canFetchTranslation(s.ref.translation));
@@ -941,6 +953,17 @@ function bindEvents() {
     handleFile(e.target.files[0]);
     e.target.value = '';
   });
+  $('btn-paste-requests').addEventListener('click', () => {
+    $('paste-modal').hidden = false;
+    $('paste-text').focus();
+  });
+  $('btn-build-paste').addEventListener('click', buildFromPaste);
+  $('paste-text').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      buildFromPaste();
+    }
+  });
   $('btn-load-sample').addEventListener('click', () => {
     if (state.slides.some(s => s.edited) && !confirm('Replace the current slides with the sample?')) return;
     loadRequestText(sampleRequests, 'the Acts 27-28 sample');
@@ -975,7 +998,7 @@ function bindEvents() {
   $('btn-prev').addEventListener('click', () => openEditor(state.active - 1));
   $('btn-next').addEventListener('click', () => openEditor(state.active + 1));
   document.addEventListener('keydown', e => {
-    if (!state.slides.length || !$('help-modal').hidden || !$('proof-modal').hidden) return;
+    if (!state.slides.length || document.querySelector('.modal:not([hidden])')) return;
     const active = document.activeElement;
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable;
 
@@ -1073,6 +1096,9 @@ function bindEvents() {
   document.querySelectorAll('.modal').forEach(m => {
     m.addEventListener('click', e => {
       if (e.target === m || e.target.closest('[data-close]')) m.hidden = true;
+    });
+    m.addEventListener('keydown', e => {
+      if (e.key === 'Escape') m.hidden = true;
     });
   });
 

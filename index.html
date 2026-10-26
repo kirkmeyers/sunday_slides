@@ -28,6 +28,7 @@
               <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Load requests
             </button>
+            <button class="btn" id="btn-paste-requests">Paste text</button>
             <button class="btn" id="btn-load-sample">Load sample</button>
           </div>
           <input type="file" id="file-input" accept=".txt,text/plain" hidden />
@@ -217,12 +218,35 @@
           </button>
         </header>
         <div class="modal-body help">
-          <p><strong>1. Load the requests.</strong> The listener on Pro 3 writes <code>YYYYMMDD_DAL_requests.txt</code> into the service folder's <em>Sermon content</em> folder each Sunday morning. Load it with the button, drop it on the page, or open the link on Start Here.</p>
+          <p><strong>1. Load the requests.</strong> The listener on Pro 3 writes <code>YYYYMMDD_DAL_requests.txt</code> into the service folder's <em>Sermon content</em> folder each Sunday morning. Load it with the button, drop it on the page, paste its text with Paste text, or open the link on Start Here.</p>
           <p><strong>2. Look over the warnings.</strong> Flags from the listener and anything the tool noticed (a reference it adjusted, text that doesn't match the ESV, a verse too long for one slide) are listed on the left and badged on each slide.</p>
           <p><strong>3. Edit.</strong> Scripture comes one verse per slide, without verse numbers, with the passage's reference on every slide. In the grid, click a slide to select it, move with the arrow keys, drag to reorder, press Delete to remove it (⌘Z brings it back), and double-click or press Enter to open it. In the editor, click the text to type right on the slide, as in ProPresenter. Enter adds a line break, and Option+Enter splits the slide at the cursor. Esc goes back to the grid. Select words and press <em>Dim / undim</em> (or ⌘D) to dim the part of a verse that isn't read. Split, merge, reorder, delete, and add blank slides as needed.</p>
           <p><strong>4. Cues</strong> become ProPresenter slide notes on the next slide. Turn a cue into its own text slide or a placeholder from the editor.</p>
           <p><strong>5. Export.</strong> <em>ProPresenter bundle</em> makes a <code>.probundle</code> with live, editable text on the theme's own slides. Double-click it on the Pro machine to import. PNGs (transparent, 3840×2160) are there as a backup.</p>
           <p><strong>Review link</strong> copies a link with the whole deck in it, for a communicator or producer to check. <strong>Proof sheet</strong> is a printable list of every slide.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paste requests -->
+    <div class="modal" id="paste-modal" hidden>
+      <div class="modal-card wide">
+        <header class="modal-header">
+          <div>
+            <h2>Paste requests</h2>
+            <div class="proof-meta">Same format as the request file: <code>Point:</code>, <code>Scripture:</code> with <code>&gt;</code> verse lines, <code>Quote:</code>, <code>Text:</code>, <code>Cue:</code>.</div>
+          </div>
+          <button class="icon-btn" data-close aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="modal-body">
+          <textarea id="paste-text" class="paste-text" rows="16" spellcheck="false" placeholder="# communicator: Timothy Ateek&#10;Point: Pray for a miracle&#10;Scripture: Acts 27:21-25&#10;&gt; 21 Since they had been without food for a long time…"></textarea>
+          <div class="modal-actions">
+            <span class="hint">⌘Enter builds the slides.</span>
+            <button class="btn" data-close>Cancel</button>
+            <button class="btn btn-primary" id="btn-build-paste">Build slides</button>
+          </div>
         </div>
       </div>
     </div>

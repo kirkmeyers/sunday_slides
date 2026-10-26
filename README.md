@@ -8,7 +8,7 @@ It's the Sunday counterpart to [porch_slides](https://github.com/kirkmeyers/porc
 
 ## Features
 
-- **Three ways to load requests:** the Load requests button, dragging the `.txt` onto the page, or a `#outline=` link (the listener's "Open in Sunday Slides" button on Start Here).
+- **Four ways to load requests:** the Load requests button, dragging the `.txt` onto the page, pasting the text into the Paste text box (⌘Enter builds), or a `#outline=` link (the listener's "Open in Sunday Slides" button on Start Here).
 - **Scripture the Sunday way:** one verse per slide, no verse numbers in the text, and the passage's full reference (for example, "Acts 27:21-25") on each slide. A verse too tall for the text box is split between sentences. Poetry (Psalms, Proverbs, Job, Song of Solomon, Lamentations) is set in its printed lines.
 - **Checked against the ESV:** on load, each verse is compared with the ESV from the Bolls Bible API.
   - Spacing slips like "brothersand" are fixed.
