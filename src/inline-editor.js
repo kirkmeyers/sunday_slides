@@ -151,14 +151,19 @@ export function createTextBox(element, { placeholder = '' } = {}) {
 
 /**
  * Wire up typing behavior: Enter makes a line break (not a new paragraph),
+ * Option+Enter splits the slide (as in ProPresenter) when `onSplit` is given,
  * pasted text arrives as plain text, Escape leaves the box.
  */
-export function bindEditable(editor, onChange) {
+export function bindEditable(editor, { onSplit } = {}, onChange) {
   editor.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && e.altKey) {
+      e.preventDefault();
+      if (onSplit) onSplit();
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       document.execCommand('insertLineBreak');
     } else if (e.key === 'Escape') {
+      e.stopPropagation(); // leave the text box, not the editor
       editor.blur();
     }
   });

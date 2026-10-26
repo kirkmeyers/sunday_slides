@@ -23,7 +23,7 @@ It's the Sunday counterpart to [porch_slides](https://github.com/kirkmeyers/porc
   - Verses that need text.
   - Text too tall for its box.
   - These are listed in the left panel and badged on each slide.
-- **Grid and editor:** edit text (Enter for a line break, `{braces}` to dim words), split at the cursor, merge, reorder by dragging, delete, and add blank slides.
+- **Grid and editor:** in the grid, click to select, use the arrow keys to move, drag to reorder, and double-click or press Enter to open a slide. In the editor, type directly on the slide as in ProPresenter. Enter adds a line break, Option+Enter splits the slide at the cursor, and Dim / undim (⌘D) dims the selected words. You can also merge, delete, and add blank slides.
 - **Exports:**
   - **ProPresenter bundle** (`YYYYMMDD - Sunday - LastName.probundle`): live text built from the theme's template slides, with cues as slide notes and the content bar image included.
   - **Transparent PNGs** at 3840×2160, one at a time or all as a ZIP (`YYYYMMDD - Sunday - LastName - 012 acts_27_21-25 v21.png`).

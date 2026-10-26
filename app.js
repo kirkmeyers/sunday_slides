@@ -298,7 +298,8 @@ function renderGrid() {
         <span class="slide-ref">${escapeHtml(cardCaption(slide))}</span>
         ${slideBadges(slide)}
       </div>`;
-    card.addEventListener('click', () => openEditor(i));
+    card.addEventListener('click', () => selectSlide(i));
+    card.addEventListener('dblclick', () => openEditor(i));
     card.addEventListener('dragstart', e => {
       dragIndex = i;
       card.classList.add('dragging');
@@ -331,6 +332,19 @@ function renderGrid() {
     ctx.setTransform(canvas.width / state.size.w, 0, 0, canvas.height / state.size.h, 0, 0);
     drawSlide(ctx, slide, state.layouts, state.theme.assets, { dimOpacity: state.dimOpacity });
   });
+}
+
+/** Select a slide in the grid without opening it. */
+function selectSlide(index) {
+  state.active = Math.max(0, Math.min(index, state.slides.length - 1));
+  const cards = $('grid').querySelectorAll('.slide-card');
+  cards.forEach((c, i) => c.classList.toggle('active', i === state.active));
+  cards[state.active]?.scrollIntoView({ block: 'nearest' });
+}
+
+/** Number of columns the grid is showing right now, for Up/Down. */
+function gridColumns() {
+  return getComputedStyle($('grid')).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
 }
 
 // ---------- Editor ----------
@@ -392,7 +406,7 @@ function renderSlideLayer() {
     );
     box.classList.add('placeholder-box');
     editor.innerHTML = textToHtml(slide.text);
-    bindEditable(editor, text => {
+    bindEditable(editor, {}, text => {
       slide.text = text.replace(/[{}]/g, '');
       slide.edited = true;
       slideEdited();
@@ -406,7 +420,7 @@ function renderSlideLayer() {
   const layout = state.layouts[slide.layout];
   const main = createTextBox(layout.text, { placeholder: slide.kind === 'scripture' ? 'Verse text' : 'Slide text' });
   main.editor.innerHTML = textToHtml(slide.needsText ? '' : slide.text);
-  bindEditable(main.editor, text => {
+  bindEditable(main.editor, { onSplit: splitAtCursor }, text => {
     slide.text = text;
     slide.edited = true;
     if (slide.needsText && plainText(text).trim()) slide.needsText = false;
@@ -419,7 +433,7 @@ function renderSlideLayer() {
   if (layout.reference && (slide.kind === 'scripture' || slide.kind === 'quote')) {
     const ref = createTextBox(layout.reference, { placeholder: slide.kind === 'quote' ? 'Author' : 'Reference' });
     ref.editor.innerHTML = textToHtml(slide.reference || '');
-    bindEditable(ref.editor, text => {
+    bindEditable(ref.editor, {}, text => {
       slide.reference = text.replace(/[{}]/g, '').replace(/\n/g, ' ');
       slideEdited();
     });
@@ -489,7 +503,10 @@ function setView(view) {
   $('empty-state').hidden = has;
   $('grid').hidden = !has || view !== 'grid';
   $('editor').hidden = !has || view !== 'editor';
-  if (has && view === 'grid') renderGrid();
+  if (has && view === 'grid') {
+    renderGrid();
+    $('grid').querySelectorAll('.slide-card')[state.active]?.scrollIntoView({ block: 'nearest' });
+  }
 }
 
 function renderAll() {
@@ -554,9 +571,11 @@ function cueAction(cueIndex, act) {
   showToast(kind === 'text' ? 'Cue turned into a text slide.' : 'Cue turned into a placeholder slide.');
 }
 
+/** Split the slide at the cursor and carry on typing at the start of the new slide (Option+Enter). */
 function splitAtCursor() {
   const slide = activeSlide();
-  const pos = lastCaret && lastCaret.start;
+  const caret = activeEditable && selectionOffsets(activeEditable);
+  const pos = (caret || lastCaret)?.start;
   const length = plainText(slide.text).length;
   if (pos == null || pos <= 0 || pos >= length) {
     showToast('Click in the slide text where the new slide should start.', 'warn');
@@ -570,8 +589,12 @@ function splitAtCursor() {
   const second = { ...slide, id: newId(), text: trim(sliceText(original, pos, length)), cues: [], checks: [], edited: true };
   updateOverflow(second);
   state.slides.splice(state.active + 1, 0, second);
+  state.active += 1;
   renderAll();
-  showToast('Split into two slides.');
+  if (activeEditable) {
+    activeEditable.focus();
+    setSelectionOffsets(activeEditable, 0);
+  }
 }
 
 function mergeWithNext() {
@@ -867,14 +890,32 @@ function bindEvents() {
   $('btn-prev').addEventListener('click', () => openEditor(state.active - 1));
   $('btn-next').addEventListener('click', () => openEditor(state.active + 1));
   document.addEventListener('keydown', e => {
-    if (state.view !== 'editor') return;
-    // Cmd/Ctrl+D dims or undims the selected words while typing on the slide
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && document.activeElement?.isContentEditable) {
+    if (!state.slides.length || !$('help-modal').hidden || !$('proof-modal').hidden) return;
+    const active = document.activeElement;
+    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable;
+
+    if (state.view === 'grid') {
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      // Arrow keys move the selection around the grid; Enter opens it
+      const cols = gridColumns();
+      const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols };
+      if (e.key in moves) {
+        e.preventDefault();
+        const next = state.active + moves[e.key];
+        if (next >= 0 && next < state.slides.length) selectSlide(next);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        openEditor(state.active);
+      }
+      return;
+    }
+
+    // Editor: Cmd/Ctrl+D dims or undims the selected words while typing on the slide
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && active?.isContentEditable) {
       e.preventDefault();
       toggleDim();
       return;
     }
-    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable;
     if (typing) return;
     if (e.key === 'ArrowLeft') openEditor(state.active - 1);
     if (e.key === 'ArrowRight') openEditor(state.active + 1);
@@ -903,8 +944,6 @@ function bindEvents() {
   $('btn-use-esv').addEventListener('click', useEsvText);
   $('btn-split').addEventListener('click', splitAtCursor);
   $('btn-merge').addEventListener('click', mergeWithNext);
-  $('btn-move-up').addEventListener('click', () => moveSlide(state.active, state.active - 1));
-  $('btn-move-down').addEventListener('click', () => moveSlide(state.active, state.active + 2));
   $('btn-insert-blank').addEventListener('click', () => insertSlide(state.active + 1, blankSlide()));
   $('btn-add-slide').addEventListener('click', () => insertSlide(state.slides.length ? state.active + 1 : 0, blankSlide()));
   $('btn-delete').addEventListener('click', deleteSlide);

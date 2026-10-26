@@ -156,7 +156,7 @@
               </button>
               <button class="btn btn-small" id="btn-relayout" title="Redo automatic line breaks from the original text">Auto line breaks</button>
               <button class="btn btn-small" id="btn-use-esv" hidden>Use ESV text</button>
-              <span class="stage-hint">Click the text to edit. Enter adds a line break. Select words and press Dim to dim them.</span>
+              <span class="stage-hint">Click the text to edit. Enter adds a line break; Option+Enter splits the slide. Select words and press Dim to dim them.</span>
             </div>
             <div class="slide-badges" id="editor-badges"></div>
           </div>
@@ -175,10 +175,8 @@
             </label>
             <div class="esv-compare" id="esv-compare" hidden></div>
             <div class="button-row wrap">
-              <button class="btn btn-small" id="btn-split" title="Split this slide at the cursor">Split at cursor</button>
+              <button class="btn btn-small" id="btn-split" title="Split this slide at the cursor (Option+Enter)">Split at cursor</button>
               <button class="btn btn-small" id="btn-merge" title="Merge with the next slide">Merge with next</button>
-              <button class="btn btn-small" id="btn-move-up">Move up</button>
-              <button class="btn btn-small" id="btn-move-down">Move down</button>
               <button class="btn btn-small" id="btn-insert-blank">Blank after</button>
               <button class="btn btn-small btn-danger" id="btn-delete">Delete</button>
             </div>
@@ -208,7 +206,7 @@
         <div class="modal-body help">
           <p><strong>1. Load the requests.</strong> The listener on Pro 3 writes <code>YYYYMMDD_DAL_requests.txt</code> into the service folder's <em>Sermon content</em> folder each Sunday morning. Load it with the button, drop it on the page, or open the link on Start Here.</p>
           <p><strong>2. Look over the warnings.</strong> Flags from the listener and anything the tool noticed (a reference it adjusted, text that doesn't match the ESV, a verse too long for one slide) are listed on the left and badged on each slide.</p>
-          <p><strong>3. Edit.</strong> Scripture comes one verse per slide, without verse numbers, with the passage's reference on every slide. Open a slide and click its text to type right on the slide, as in ProPresenter. Enter adds a line break. Select words and press <em>Dim / undim</em> (or ⌘D) to dim the part of a verse that isn't read. Split, merge, reorder, delete, and add blank slides as needed.</p>
+          <p><strong>3. Edit.</strong> Scripture comes one verse per slide, without verse numbers, with the passage's reference on every slide. In the grid, click a slide to select it, move with the arrow keys, drag to reorder, and double-click or press Enter to open it. In the editor, click the text to type right on the slide, as in ProPresenter. Enter adds a line break, and Option+Enter splits the slide at the cursor. Esc goes back to the grid. Select words and press <em>Dim / undim</em> (or ⌘D) to dim the part of a verse that isn't read. Split, merge, reorder, delete, and add blank slides as needed.</p>
           <p><strong>4. Cues</strong> become ProPresenter slide notes on the next slide. Turn a cue into its own text slide or a placeholder from the editor.</p>
           <p><strong>5. Export.</strong> <em>ProPresenter bundle</em> makes a <code>.probundle</code> with live, editable text on the theme's own slides. Double-click it on the Pro machine to import. PNGs (transparent, 3840×2160) are there as a backup.</p>
           <p><strong>Review link</strong> copies a link with the whole deck in it, for a communicator or producer to check. <strong>Proof sheet</strong> is a printable list of every slide.</p>
