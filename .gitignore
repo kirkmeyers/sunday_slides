@@ -22,3 +22,6 @@ reference/*/
 
 # Local tooling
 .claude/
+
+# Licensed Bible texts stay local
+reference/*.pdf
