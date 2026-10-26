@@ -3,7 +3,8 @@ import { parseRequestFile, extractCommunicatorLastName, serviceDateCode } from '
 import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel } from './src/slides.js';
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
-import { fetchChapter, compareVerse, isNivTranslation, translationName, TRANSLATIONS } from './src/bible.js';
+import { fetchChapter, compareVerse, canFetchTranslation, textSource, translationName, TRANSLATIONS } from './src/bible.js';
+import { restoreLocalBibles, saveLocalBible, removeLocalBible, validateBible, verseCount } from './src/local-bibles.js';
 import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
 import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
 import { exportBundle } from './src/propresenter.js';
@@ -147,7 +148,7 @@ async function handleFile(file) {
 
 // ---------- Checking scripture against the ESV ----------
 async function verifyScripture() {
-  const targets = state.slides.filter(s => s.kind === 'scripture' && s.ref && s.verseText && !isNivTranslation(s.ref.translation));
+  const targets = state.slides.filter(s => s.kind === 'scripture' && s.ref && s.verseText && canFetchTranslation(s.ref.translation));
   if (!targets.length || state.verifying) return;
   state.verifying = true;
   const status = $('verify-status');
@@ -458,7 +459,7 @@ function renderEditor() {
   if (scripture) {
     const source = slide.ref.sourceTranslation;
     $('edit-translation').innerHTML = Object.entries(TRANSLATIONS)
-      .map(([code, name]) => `<option value="${code}">${name}${code === source ? ' (manuscript)' : ''}${isNivTranslation(code) && code !== source ? ' (type it in)' : ''}</option>`)
+      .map(([code, name]) => `<option value="${code}">${name}${code === source ? ' (manuscript)' : ''}${!canFetchTranslation(code) && code !== source ? ' (type it in)' : ''}</option>`)
       .join('');
     $('edit-translation').value = slide.ref.translation;
   }
@@ -472,7 +473,7 @@ function renderEditor() {
   compare.hidden = !showEsv;
   $('btn-use-esv').hidden = !showEsv;
   if (showEsv) {
-    compare.innerHTML = `<strong>${escapeHtml(translationName(slide.ref.translation))} (Bolls) · verse ${slide.ref.verse}</strong>${escapeHtml(slide.esv.text)}
+    compare.innerHTML = `<strong>${escapeHtml(translationName(slide.ref.translation))} (${textSource(slide.ref.translation)}) · verse ${slide.ref.verse}</strong>${escapeHtml(slide.esv.text)}
       <strong style="margin-top:8px">Manuscript</strong>${escapeHtml(slide.verseText)}`;
   }
 
@@ -684,14 +685,15 @@ function useEsvText() {
   const laid = relayout([{ ...slide, source: slide.esv.text, verseText: slide.esv.text, esv: { ...slide.esv, kind: 'same' }, edited: false, checks: slide.checks.filter(c => !(typeof c === 'object' && c.danger)) }]);
   state.slides.splice(state.active, 1, ...laid);
   renderAll();
-  showToast(`Now using the ${translationName(slide.ref.translation)} text from Bolls.`);
+  showToast(`Now using the ${translationName(slide.ref.translation)} text from ${textSource(slide.ref.translation)}.`);
 }
 
 /**
  * Switch the active slide's passage to another translation, like porch_slides'
  * per-slide translation picker. Text comes from the manuscript when switching
- * back to the request file's translation, otherwise from Bolls. Bolls doesn't
- * serve the NIV, so NIV verses become "text needed" slides to type into.
+ * back to the request file's translation, otherwise from Bolls or a translation
+ * file loaded in Settings (the NIV 84). Bolls doesn't serve the NIV, so other
+ * NIV verses become "text needed" slides to type into.
  */
 async function changeTranslation(code) {
   const slide = activeSlide();
@@ -713,7 +715,7 @@ async function changeTranslation(code) {
   let missing = 0;
   if (code === slide.ref.sourceTranslation) {
     verses.forEach(v => (v.text = v.manuscript));
-  } else if (isNivTranslation(code)) {
+  } else if (!canFetchTranslation(code)) {
     verses.forEach(v => (v.text = ''));
     missing = verses.length;
   } else {
@@ -721,7 +723,7 @@ async function changeTranslation(code) {
     const chapter = await fetchChapter(slide.ref.bookId, slide.ref.chapter, code);
     $('translation-field').classList.remove('busy');
     if (!chapter) {
-      showToast(`Couldn’t get the ${translationName(code)} from Bolls. Check the connection and try again.`, 'warn', 6000);
+      showToast(`Couldn’t get the ${translationName(code)} from ${textSource(code)}. Check the connection and try again.`, 'warn', 6000);
       $('edit-translation').value = slide.ref.translation;
       return;
     }
@@ -734,8 +736,8 @@ async function changeTranslation(code) {
   const cues = group.flatMap(s => s.cues);
   const rebuilt = relayout(passageSlides(group[0], verses, code, cues));
   if (missing) {
-    rebuilt[0].checks = [...rebuilt[0].checks, { esv: true, danger: true, text: isNivTranslation(code)
-      ? `Bolls doesn’t carry the ${translationName(code)}; type or paste the verse text on each slide.`
+    rebuilt[0].checks = [...rebuilt[0].checks, { esv: true, danger: true, text: !canFetchTranslation(code)
+      ? `Bolls doesn’t carry the ${translationName(code)}; type or paste the verse text on each slide, or load the NIV 84 file in Settings.`
       : `${missing} verse${missing === 1 ? '' : 's'} weren’t found in the ${translationName(code)}.` }];
   }
   const offset = state.active - start;
@@ -1095,6 +1097,19 @@ function bindEvents() {
     $('slide-layer').style.setProperty('--dim', state.dimOpacity);
   });
   $('dim-opacity').addEventListener('change', () => state.view === 'grid' && renderGrid());
+  $('btn-load-niv84').addEventListener('click', () => $('niv84-input').click());
+  $('niv84-input').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) await loadNiv84File(file);
+  });
+  $('btn-remove-niv84').addEventListener('click', async () => {
+    if (!confirm('Remove the NIV 84 text from this browser?')) return;
+    await removeLocalBible('NIV');
+    renderLocalBibles([]);
+    renderAll();
+    showToast('NIV 84 removed from this computer.');
+  });
   $('verify-esv').addEventListener('change', e => storageSet('verifyEsv', e.target.checked));
 
   $('theme-select').addEventListener('change', async e => {
@@ -1107,6 +1122,41 @@ function bindEvents() {
   window.addEventListener('hashchange', loadFromHash);
 }
 
+// ---------- NIV 84 file (Settings) ----------
+function renderLocalBibles(list) {
+  const niv = list.find(b => b.code === 'NIV');
+  $('niv84-status').textContent = niv
+    ? `Loaded on this computer: ${niv.verses.toLocaleString()} verses.`
+    : 'Not on this computer. Make the file with npm run niv84, then load it here once.';
+  $('btn-remove-niv84').hidden = !niv;
+  $('btn-load-niv84').textContent = niv ? 'Replace NIV 84 file' : 'Load NIV 84 file';
+}
+
+async function loadNiv84File(file) {
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    showToast('That file isn’t readable JSON.', 'warn');
+    return;
+  }
+  const problem = validateBible(data) || (data.translation !== 'NIV' ? 'That isn’t the NIV 84 file.' : '');
+  if (problem) {
+    showToast(problem, 'warn', 6000);
+    return;
+  }
+  try {
+    await saveLocalBible(data);
+  } catch (err) {
+    console.error(err);
+    showToast('Couldn’t store the file in this browser.', 'warn');
+    return;
+  }
+  renderLocalBibles([{ code: 'NIV', name: data.name, verses: verseCount(data) }]);
+  renderAll();
+  showToast('NIV 84 is ready on this computer.');
+}
+
 async function init() {
   state.bg = storageGet('bg', 'video');
   state.dimOpacity = storageGet('dimOpacity', 0.4);
@@ -1115,6 +1165,7 @@ async function init() {
   $('verify-esv').checked = storageGet('verifyEsv', true);
   $('theme-select').innerHTML = THEMES.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   await loadTheme(THEMES[0]);
+  renderLocalBibles(await restoreLocalBibles());
   bindEvents();
   renderAll();
   await loadFromHash();

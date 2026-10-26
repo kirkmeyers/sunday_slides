@@ -25,3 +25,4 @@ reference/*/
 
 # Licensed Bible texts stay local
 reference/*.pdf
+reference/*.json

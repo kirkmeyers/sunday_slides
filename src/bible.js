@@ -134,6 +134,11 @@ export function normalizeTranslation(raw) {
   return TRANSLATION_ALIASES[key] || key.toUpperCase();
 }
 
+/** A translation code as-is ("NIV" is the NIV 84 code), anything else normalized. */
+function toCode(t) {
+  return TRANSLATIONS[t] ? t : normalizeTranslation(t);
+}
+
 /** How a translation code prints on a slide: "NIV2011" -> "NIV". */
 export function translationName(code) {
   return TRANSLATIONS[code] || code;
@@ -154,6 +159,57 @@ export function isPoeticBook(bookId) {
 /** Bolls no longer serves the NIV, so NIV text has to come from the manuscript or be typed in. */
 export function isNivTranslation(t) {
   return /^NIV/i.test((t || '').trim());
+}
+
+// Translations loaded from a file on this machine (the NIV 84 from scripts/niv84.js),
+// keyed by code: { books: { [bookId]: { [chapter]: { [verse]: text } } } }
+const localBibles = {};
+
+/** Use (or with null, stop using) a translation file loaded on this machine. */
+export function setLocalBible(code, data) {
+  if (data) localBibles[code] = data;
+  else delete localBibles[code];
+  for (const key of Object.keys(chapterCache)) if (key.startsWith(`${code}_`)) delete chapterCache[key];
+}
+
+export function hasLocalBible(code) {
+  return Boolean(localBibles[toCode(code)]);
+}
+
+/** Can the tool get this translation's text, from Bolls or a local file? */
+export function canFetchTranslation(t) {
+  return !isNivTranslation(t) || hasLocalBible(t);
+}
+
+/** Where a translation's text comes from, for the compare box. */
+export function textSource(t) {
+  return hasLocalBible(t) ? 'local file' : 'Bolls';
+}
+
+/**
+ * The NIV 84 file lost its small caps, so many a LORD reads "Lord". The ESV
+ * uses the same convention (LORD for the divine name), so take each Lord's
+ * case from the ESV verse when both have the same number of them. "Sovereign
+ * LORD" (the ESV's "Lord GOD") is already right and is left out of the count.
+ */
+export function restoreLord(text, esv) {
+  const ours = [...text.matchAll(/\bLord\b|\bLORD\b/gi)].filter(m => !/Sovereign\s+$/.test(text.slice(0, m.index)));
+  const theirs = [...(esv || '').matchAll(/\bLord\b|\bLORD\b/g)].filter(m => !/^\s+GOD\b/.test(esv.slice(m.index + 4)));
+  if (!ours.length || ours.length !== theirs.length) return text;
+  let out = text;
+  ours.forEach((m, i) => (out = out.slice(0, m.index) + theirs[i][0] + out.slice(m.index + 4)));
+  return out;
+}
+
+async function localChapter(code, bookId, chapter) {
+  const verses = localBibles[code]?.books?.[bookId]?.[chapter];
+  if (!verses) return null;
+  let result = Object.entries(verses).map(([verse, text]) => ({ verse: Number(verse), text }));
+  if (code === 'NIV' && bookId <= 39 && result.some(v => /\bLord\b/.test(v.text))) {
+    const esv = await fetchChapter(bookId, chapter, 'ESV');
+    if (esv) result = result.map(v => ({ ...v, text: restoreLord(v.text, esv.find(e => e.verse === v.verse)?.text) }));
+  }
+  return result;
 }
 
 /**
@@ -316,11 +372,17 @@ function isUsableChapterData(data) {
 
 /**
  * Fetch a chapter from Bolls, with retry on 429. Returns [{ verse, text }] or
- * null. Bolls no longer serves the NIV, so NIV requests return null and the
- * caller falls back to the manuscript text ("text needed").
+ * null. A translation loaded from a local file comes from that instead. Bolls
+ * no longer serves the NIV, so NIV requests without a local file return null
+ * and the caller falls back to the manuscript text ("text needed").
  */
 export async function fetchChapter(bookId, chapter, translation = 'ESV') {
-  let code = normalizeTranslation(translation);
+  let code = toCode(translation);
+  if (localBibles[code]) {
+    const key = `${code}_${bookId}_${chapter}`;
+    chapterCache[key] ??= await localChapter(code, bookId, chapter);
+    return chapterCache[key];
+  }
   if (isNivTranslation(code)) return null;
   if (code === 'NASB_1995') code = 'NASB';
   const cacheKey = `${code}_${bookId}_${chapter}`;

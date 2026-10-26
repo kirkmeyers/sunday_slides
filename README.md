@@ -15,7 +15,7 @@ It's the Sunday counterpart to [porch_slides](https://github.com/kirkmeyers/porc
   - When the manuscript quotes only the start of a verse, the rest of the verse is shown dimmed.
   - Anything else that differs is flagged, with a side-by-side comparison and a Use ESV text button.
 - **Line breaks like the operators make them:** points are balanced over their lines, breaking at phrase boundaries, and scripture never ends on a one- or two-word line.
-- **Translations:** a translation named in the request file (`Scripture: Romans 8:18 (NIV)`) or the `# translation:` header carries through to the slides. The slide itself shows only the reference; anything other than the ESV is named in the ProPresenter slide and group labels, the grid and the proof sheet, for example "Romans 8:18 (NIV)". In the editor, the Translation picker (ESV, KJV, NIV, NIV 84, NASB, NASB 1995, NLT, ASV, CSB, the same list as porch_slides) switches the whole passage. Text comes from Bolls, or from the manuscript when you switch back to the request file's translation. Bolls doesn't carry the NIV, so NIV verses become "text needed" slides to type into.
+- **Translations:** a translation named in the request file (`Scripture: Romans 8:18 (NIV)`) or the `# translation:` header carries through to the slides. The slide itself shows only the reference; anything other than the ESV is named in the ProPresenter slide and group labels, the grid and the proof sheet, for example "Romans 8:18 (NIV)". In the editor, the Translation picker (ESV, KJV, NIV, NIV 84, NASB, NASB 1995, NLT, ASV, CSB, the same list as porch_slides) switches the whole passage. Text comes from Bolls, or from the manuscript when you switch back to the request file's translation. Bolls doesn't carry the NIV, so NIV verses become "text needed" slides to type into, unless the NIV 84 file is loaded (see below).
 - **Quotes** use the scripture layout, with the author in the reference box.
 - **Cues** (`Cue:` lines) ride along as ProPresenter slide notes on the next slide. From the editor, a cue can become its own text slide or a placeholder slide.
 - **Warnings where the operator sees them:**
@@ -77,6 +77,27 @@ The tool treats that format as the contract. If the tool needs something more, i
 
 `#outline=<payload>` carries a request file, zipped (DEFLATE, one file named `d`) and URL-safe base64 encoded without padding. It uses the same encoding as porch_slides, so the Node example in the [porch_slides README](https://github.com/kirkmeyers/porch_slides#4-load-from-link-outlinepayload) works unchanged; point it at this site's URL. In the browser console, `await encodeOutlineLink(text)` builds one.
 
+## NIV 84 from a local file
+
+The NIV is under copyright, so its text never ships with the site. Each computer that needs the NIV 84 loads it once:
+
+1. Put the NIV 1984 PDF at `reference/NIVBible_1984.pdf`. PDFs and JSON files in `reference/` are gitignored.
+2. On a Mac, run:
+
+   ```bash
+   npm run niv84 -- reference/NIVBible_1984.pdf
+   ```
+
+   This writes `reference/niv84.json`, about 4 MB, and lists anything it couldn't place. It reads the PDF's fonts to find books, chapters and verse numbers, and the page layout to put the two columns in order.
+3. In Sunday Slides, open **Settings → Load NIV 84 file** and choose `niv84.json`. The browser keeps it (IndexedDB), and NIV 84 then works like any other translation in the picker.
+
+Review links carry the finished slide text, so teammates opening one don't need the file. They only need it to pull NIV 84 text themselves.
+
+The PDF isn't a perfect source, so check NIV 84 slides by eye:
+- **Em dashes:** the PDF prints em dashes as hyphens. The converter restores them by rule ("morning—the sixth day", but "seed-bearing" and "twenty-two"), and a few will still be wrong.
+- **LORD:** the PDF lost its small caps. LORD is restored where the PDF leaves a clue and in "Sovereign LORD". In the Old Testament, the rest take their case from the ESV verse when both have the same number of "Lord"s; otherwise they stay "Lord".
+- **Plain "NIV":** this is the 1984 text. A request for plain "NIV" means the 2011 edition, which still has to be typed in.
+
 ## Using the output in ProPresenter
 
 1. Click **ProPresenter bundle** and copy the `.probundle` to the Pro machine.
@@ -97,6 +118,7 @@ Currently included: **Sunday Acts - Fall** (Lato Light text, Oswald SemiBold ref
 index.html, app.js, style.css   UI
 src/requests.js                 request file parser
 src/bible.js                    references, verse splitting, poetry, Bolls API, ESV comparison
+src/local-bibles.js             translation files kept in the browser (NIV 84)
 src/slides.js                   entries -> slides, automatic line breaks and splits
 src/layout.js                   text wrapping, balancing, fitting
 src/render.js                   canvas drawing for the preview and PNGs
@@ -106,6 +128,7 @@ src/protobuf.js                 small schema-less protobuf reader/writer
 src/links.js                    #outline= and #review= links
 src/themes/acts-fall/           theme file, content bar, layout config
 src/fonts/                      Lato and Oswald (SIL Open Font License)
+scripts/niv84.js                NIV 84 PDF -> JSON (macOS; uses scripts/pdf-runs.swift)
 ```
 
 ## Notes
