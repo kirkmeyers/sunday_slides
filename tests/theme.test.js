@@ -31,6 +31,8 @@ test('resolves text boxes, fonts and the content bar', () => {
   assert.equal(s.reference.style.align, 'right');
   assert.equal(s.reference.style.letterSpacing, 5);
   assert.deepEqual(s.reference.style.color, [234, 231, 225]);
+  assert.equal(s.reference.style.caps, true);
+  assert.equal(s.text.style.caps, false);
   assert.ok(s.slide.elements.some(e => e.image === '003_ActsFall_ContentBar.png'));
   const p = layouts.point;
   assert.equal(p.text.style.size, 110);

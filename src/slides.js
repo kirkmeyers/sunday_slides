@@ -19,7 +19,7 @@
  */
 
 import { parseReference, formatReference, splitVerses, poeticLines, isPoeticBook, smartQuotes } from './bible.js';
-import { wrapLines, maxLinesFor, balanceLines, avoidShortLastLine, splitToFit } from './layout.js';
+import { wrapLines, maxLinesFor, balanceLines, avoidShortLastLine, splitToFit, textArea } from './layout.js';
 
 let nextId = 1;
 export function newId() {
@@ -157,7 +157,7 @@ export function layoutSlides(slides, layouts, measure, metricsFor) {
       continue;
     }
     const el = layouts[slide.layout].text;
-    const width = el.bounds.w;
+    const width = textArea(el).w;
     const style = el.style;
     const source = slide.source || slide.text;
 

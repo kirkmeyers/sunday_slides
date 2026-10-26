@@ -107,3 +107,10 @@ test('exports a presentation built on the theme slides', () => {
   const uuids = text.match(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/g);
   assert.ok(!uuids.includes('48FF4333-8E0B-44B3-BC43-D4897E62CB8A'), 'theme element UUID was copied as-is');
 });
+
+test('moves a word down only when a verse would end on a single word', async () => {
+  const { avoidShortLastLine } = await import('../src/layout.js');
+  const m = s => s.length * 10;
+  assert.equal(avoidShortLastLine('aaaa bbbb cccc dddd eeee ffff gggg on a cross.', 390, m, {}), 'aaaa bbbb cccc dddd eeee ffff gggg\non a cross.');
+  assert.equal(avoidShortLastLine('aaaa bbbb cccc dddd eeee ffff gggg shall go.', 360, m, {}), 'aaaa bbbb cccc dddd eeee ffff gggg shall go.');
+});

@@ -18,7 +18,7 @@ npm-debug.log*
 *.docx
 *.probundle
 *.pro
-reference/ProPresenter/
+reference/*/
 
 # Local tooling
 .claude/

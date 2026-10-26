@@ -90,6 +90,30 @@ export function linePitch(style, fontMetrics) {
   return (fontMetrics.ascent + fontMetrics.descent) * style.lineMultiple + style.leading;
 }
 
+/**
+ * Distance from a line's top to its baseline. Core Text splits the space a
+ * line-height multiple adds (or removes) evenly above and below the glyphs;
+ * extra leading goes below. Measured against ProPresenter's own exports.
+ */
+export function baselineOffset(style, fontMetrics) {
+  const natural = fontMetrics.ascent + fontMetrics.descent;
+  return fontMetrics.ascent + (natural * style.lineMultiple - natural) / 2;
+}
+
+// ProPresenter text boxes keep 5pt of padding inside their left and right edges
+// (Cocoa's line fragment padding), so text wraps and aligns in a narrower area.
+export const TEXT_INSET = 5;
+
+export function textArea(element) {
+  const { x, w } = element.bounds;
+  return { x: x + TEXT_INSET, w: w - TEXT_INSET * 2 };
+}
+
+/** Apply the text box's capitalization (e.g. references set in all caps). */
+export function applyCase(text, style) {
+  return style.caps ? text.toUpperCase() : text;
+}
+
 export function maxLinesFor(element, fontMetrics) {
   return Math.max(1, Math.floor((element.bounds.h + 0.5) / linePitch(element.style, fontMetrics)));
 }
@@ -138,22 +162,22 @@ const TRAILING_WEAK = new Set(['a', 'an', 'the', 'of', 'for', 'to', 'in', 'on', 
 const LEADING_PHRASE = new Set(['in', 'and', 'but', 'at', 'with', 'by', 'because', 'that', 'so', 'when', 'who', 'which', 'through']);
 
 /**
- * Keep a paragraph from ending on a one- or two-word line by moving a few
- * words down with a hard break, the way the operators do by hand.
+ * Keep a paragraph from ending on a single word by moving a word or two down
+ * with a hard break, the way the operators do by hand: "…in him all things /
+ * hold together." Words like "a" or "on" go down with the word after them, so
+ * the break never leaves them at a line end ("…even death / on a cross.").
  */
 export function avoidShortLastLine(text, maxWidth, measure, style) {
+  if (text.includes('\n')) return text;
   const lines = wrapLines(text, maxWidth, measure, style);
   if (lines.length < 2) return text;
   const last = lines[lines.length - 1];
   const prev = lines[lines.length - 2];
-  if (last.words >= 3 || prev.words < 5) return text;
-  // Move words from the previous line so the last line has three
-  const move = 3 - last.words;
+  if (last.words !== 1 || prev.words < 4) return text;
   const words = text.split(' ');
-  const total = words.length;
-  const breakAt = total - (last.words + move);
-  // Only adjust plain paragraphs (no hard breaks near the end)
-  if (words.slice(breakAt).join(' ').includes('\n')) return text;
+  let move = 2;
+  while (move < 4 && TRAILING_WEAK.has(words[words.length - move - 1].toLowerCase().replace(/[^a-z]/g, ''))) move += 1;
+  const breakAt = words.length - move;
   return words.slice(0, breakAt).join(' ') + '\n' + words.slice(breakAt).join(' ');
 }
 

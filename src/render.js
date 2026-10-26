@@ -4,7 +4,7 @@
  * content bar) and its text boxes, filled with the slide's text.
  */
 
-import { wrapLines, linePitch } from './layout.js';
+import { wrapLines, linePitch, baselineOffset, textArea, applyCase } from './layout.js';
 
 const measureCanvas = document.createElement('canvas');
 const measureCtx = measureCanvas.getContext('2d');
@@ -70,21 +70,22 @@ function drawText(ctx, element, text, dimOpacity) {
   const { bounds, style } = element;
   if (!text) return;
   applyFont(ctx, style);
-  const lines = wrapLines(text, bounds.w, measure, style);
+  const area = textArea(element);
+  const lines = wrapLines(applyCase(text, style), area.w, measure, style);
   const metrics = fontMetrics(style);
   const pitch = linePitch(style, metrics);
   const blockHeight = lines.length * pitch;
   let top = bounds.y;
   if (element.valign === 'middle') top = bounds.y + (bounds.h - blockHeight) / 2;
   else if (element.valign === 'bottom') top = bounds.y + bounds.h - blockHeight;
+  const toBaseline = baselineOffset(style, metrics);
 
   ctx.textBaseline = 'alphabetic';
   lines.forEach((line, i) => {
-    // Core Text puts the extra (or reduced) line height above the glyphs
-    const baseline = top + (i + 1) * pitch - metrics.descent;
-    let x = bounds.x;
-    if (style.align === 'center') x = bounds.x + (bounds.w - line.width) / 2;
-    else if (style.align === 'right') x = bounds.x + bounds.w - line.width;
+    const baseline = top + i * pitch + toBaseline;
+    let x = area.x;
+    if (style.align === 'center') x = area.x + (area.w - line.width) / 2;
+    else if (style.align === 'right') x = area.x + area.w - line.width;
     for (const piece of line.pieces) {
       ctx.fillStyle = rgba(style.color, piece.dim ? dimOpacity : 1);
       ctx.fillText(piece.text, x, baseline);

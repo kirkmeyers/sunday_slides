@@ -84,13 +84,16 @@ function readElement(slideElementBytes) {
   const textMsg = getMessage(el, 13);
   const rtf = textMsg ? asString(get(textMsg, 5)) : null;
   const hasText = !!rtf && /\\fcharset0 /.test(rtf);
+  // Text.3 attributes, .2 capitalization: 1 = all caps
+  const attrs = textMsg && getMessage(textMsg, 3);
+  const caps = !!attrs && asInt(get(attrs, 2)) === 1;
   const image = readImageFill(el);
   return {
     name: asString(get(el, 2)) || '',
     bounds: readBounds(el),
     opacity: get(el, 5) ? asDouble(get(el, 5)) : 1,
     rtf: hasText ? rtf : null,
-    style: hasText ? readRtfStyle(rtf) : null,
+    style: hasText ? { ...readRtfStyle(rtf), caps } : null,
     valign: textMsg ? ['top', 'middle', 'bottom'][asInt(get(textMsg, 6))] || 'top' : 'top',
     image,
     raw: slideElementBytes, // Slide.Element bytes, reused for export
