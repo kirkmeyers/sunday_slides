@@ -163,8 +163,7 @@ export function bindEditable(editor, { onSplit } = {}, onChange) {
       e.preventDefault();
       document.execCommand('insertLineBreak');
     } else if (e.key === 'Escape') {
-      e.stopPropagation(); // leave the text box, not the editor
-      editor.blur();
+      editor.blur(); // the editor then goes back to the grid
     }
   });
   editor.addEventListener('paste', e => {

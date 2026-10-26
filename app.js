@@ -612,16 +612,31 @@ function mergeWithNext() {
   showToast('Merged. Use Auto line breaks or Enter to place line breaks.');
 }
 
+let lastDelete = null; // { slide, index, neighbor, neighborCues } for ⌘Z
+
 function deleteSlide() {
   const slide = activeSlide();
   if (!slide) return;
-  const next = state.slides[state.active + 1] || state.slides[state.active - 1];
+  const index = state.active;
+  const next = state.slides[index + 1] || state.slides[index - 1];
+  lastDelete = { slide, index, neighbor: next, neighborCues: next ? [...next.cues] : [] };
   if (slide.cues.length && next) next.cues = [...slide.cues, ...next.cues];
-  state.slides.splice(state.active, 1);
+  state.slides.splice(index, 1);
   if (state.active >= state.slides.length) state.active = state.slides.length - 1;
   if (!state.slides.length) state.view = 'grid';
   renderAll();
-  showToast(slide.cues.length && next ? 'Slide deleted; its cues moved to the neighboring slide.' : 'Slide deleted.');
+  showToast(`${slide.cues.length && next ? 'Slide deleted; its cues moved to the neighboring slide.' : 'Slide deleted.'} Press ⌘Z to undo.`);
+}
+
+function undoDelete() {
+  if (!lastDelete) return;
+  const { slide, index, neighbor, neighborCues } = lastDelete;
+  lastDelete = null;
+  if (neighbor) neighbor.cues = neighborCues;
+  state.slides.splice(index, 0, slide);
+  state.active = index;
+  renderAll();
+  showToast('Slide restored.');
 }
 
 /** Dim the selected words on the slide, or undim them if they're all dimmed already. */
@@ -894,8 +909,20 @@ function bindEvents() {
     const active = document.activeElement;
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable;
 
+    // Cmd/Ctrl+Z (outside a text box) brings back the last deleted slide
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey && !typing && lastDelete) {
+      e.preventDefault();
+      undoDelete();
+      return;
+    }
+
     if (state.view === 'grid') {
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSlide();
+        return;
+      }
       // Arrow keys move the selection around the grid; Enter opens it
       const cols = gridColumns();
       const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols };
@@ -916,10 +943,15 @@ function bindEvents() {
       toggleDim();
       return;
     }
+    // Esc goes back to the grid from anywhere in the editor, even mid-typing
+    if (e.key === 'Escape') {
+      active.blur?.();
+      setView('grid');
+      return;
+    }
     if (typing) return;
     if (e.key === 'ArrowLeft') openEditor(state.active - 1);
     if (e.key === 'ArrowRight') openEditor(state.active + 1);
-    if (e.key === 'Escape') setView('grid');
   });
 
   // Remember where the cursor was in the slide text, for Split and Dim
