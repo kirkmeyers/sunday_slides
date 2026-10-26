@@ -3,6 +3,9 @@ name: Deploy static content to Pages
 on:
   push:
     branches: ["main"]
+  # Lets a fresh deploy start from the Actions tab (Run workflow). Re-running
+  # an old run can fail on duplicate "github-pages" artifacts.
+  workflow_dispatch:
 
 permissions:
   contents: read
