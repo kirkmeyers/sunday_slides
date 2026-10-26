@@ -14,7 +14,7 @@ import {
   stringField, messageField, varintField, doubleField, floatField,
 } from './protobuf.js';
 import { parseRuns } from './layout.js';
-import { KIND_LABELS } from './slides.js';
+import { KIND_LABELS, referenceLabel } from './slides.js';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -189,7 +189,7 @@ const GROUP_COLORS = {
 export function slideLabel(slide) {
   const firstLine = (slide.text || '').replace(/[{}]/g, '').split('\n').join(' ');
   switch (slide.kind) {
-    case 'scripture': return slide.ref ? `${slide.reference} v${slide.ref.verse}` : slide.reference;
+    case 'scripture': return slide.ref ? `${referenceLabel(slide)} v${slide.ref.verse}` : slide.reference;
     case 'quote': return `Quote – ${slide.reference || 'unknown'}`;
     case 'placeholder': return `PLACEHOLDER: ${slide.text}`;
     case 'blank': return '';
@@ -198,7 +198,7 @@ export function slideLabel(slide) {
 }
 
 function groupName(slide) {
-  if (slide.kind === 'scripture') return slide.reference;
+  if (slide.kind === 'scripture') return referenceLabel(slide);
   return KIND_LABELS[slide.kind] || 'Slide';
 }
 

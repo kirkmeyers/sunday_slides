@@ -126,15 +126,18 @@ test('dims and undims by plain-text offsets', async () => {
   assert.equal(sliceText('one {two three} four', 4, 13), '{two three}');
 });
 
-test('a translation named in the request file carries to the slide', async () => {
-  const { scriptureReference } = await import('../src/slides.js');
+test('a translation named in the request file goes in the label, not on the slide', async () => {
+  const { scriptureReference, referenceLabel } = await import('../src/slides.js');
   const slides = buildSlides(parseRequestFile('# translation: ESV\nScripture: Romans 8:18 (NIV)\n> 18 I consider that our present sufferings\nScripture: John 3:16\n> For God so loved the world'));
-  assert.equal(slides[0].reference, 'Romans 8:18 (NIV)');
+  assert.equal(slides[0].reference, 'Romans 8:18');
+  assert.equal(referenceLabel(slides[0]), 'Romans 8:18 (NIV)');
   assert.equal(slides[0].ref.translation, 'NIV2011');
   assert.equal(slides[1].reference, 'John 3:16');
+  assert.equal(referenceLabel(slides[1]), 'John 3:16');
   assert.equal(scriptureReference('John 3:16', 'CSB17'), 'John 3:16 (CSB)');
   const niv = buildSlides(parseRequestFile('# translation: NIV\nScripture: John 3:16\n> For God so loved'));
-  assert.equal(niv[0].reference, 'John 3:16 (NIV)');
+  assert.equal(niv[0].reference, 'John 3:16');
+  assert.equal(referenceLabel(niv[0]), 'John 3:16 (NIV)');
 });
 
 test('strips Strong’s numbers and footnote letters from Bolls text', async () => {

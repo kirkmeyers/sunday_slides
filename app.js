@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { parseRequestFile, extractCommunicatorLastName, serviceDateCode } from './src/requests.js';
-import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides } from './src/slides.js';
+import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel } from './src/slides.js';
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, isNivTranslation, translationName, TRANSLATIONS } from './src/bible.js';
@@ -277,7 +277,7 @@ function slideBadges(slide) {
 }
 
 function cardCaption(slide) {
-  if (slide.kind === 'scripture') return `${slide.reference}${slide.ref ? ` · v${slide.ref.verse}` : ''}`;
+  if (slide.kind === 'scripture') return `${referenceLabel(slide)}${slide.ref ? ` · v${slide.ref.verse}` : ''}`;
   if (slide.kind === 'quote') return slide.reference;
   if (slide.kind === 'blank') return '';
   return plainText(slide.text).replace(/\n/g, ' ');
@@ -921,7 +921,7 @@ function openProofSheet() {
         <div class="proof-head">
           <span class="slide-num">${i + 1}</span>
           <span class="kind-tag ${s.kind}">${KIND_LABELS[s.kind]}</span>
-          ${s.reference ? `<span class="proof-ref">${escapeHtml(s.reference)}</span>` : ''}
+          ${s.reference ? `<span class="proof-ref">${escapeHtml(referenceLabel(s))}</span>` : ''}
           ${issues.length ? `<span class="badge${issues.some(x => x.danger) ? ' danger' : ''}">${ICON_WARN}${escapeHtml(issues.map(x => x.text).join(' '))}</span>` : ''}
         </div>
         <div class="proof-text">${s.kind === 'blank' ? '<em>(blank)</em>' : proofTextHtml(s.text)}</div>

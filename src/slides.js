@@ -73,9 +73,17 @@ function makeSlide(kind, fields) {
   };
 }
 
-/** "Romans 8:18" + NIV2011 -> "Romans 8:18 (NIV)". The ESV, Sunday's default, isn't printed. */
+/** "Romans 8:18" + NIV2011 -> "Romans 8:18 (NIV)". The ESV, Sunday's default, isn't named. */
 export function scriptureReference(label, translation) {
   return translation && translation !== 'ESV' ? `${label} (${translationName(translation)})` : label;
+}
+
+/**
+ * A slide's reference as labels show it (ProPresenter slide and group labels,
+ * grid, proof sheet): a non-ESV translation is named there, never on the slide.
+ */
+export function referenceLabel(slide) {
+  return slide.kind === 'scripture' && slide.ref ? scriptureReference(slide.reference, slide.ref.translation) : slide.reference;
 }
 
 /**
@@ -84,7 +92,7 @@ export function scriptureReference(label, translation) {
  * text becomes a "text needed" slide. Cues stay on the first slide.
  */
 export function passageSlides(first, verses, translation, cues) {
-  const reference = scriptureReference(first.ref.label, translation);
+  const reference = first.ref.label;
   return verses.map((v, i) => makeSlide('scripture', {
     group: first.group,
     text: v.text,
@@ -146,7 +154,7 @@ export function buildSlides(parsed) {
         : { verses: [], startVerse: ref.startVerse, warnings: ['No verse text in the request file; fetch it from Bolls.'] };
       const shownRef = { ...ref, startVerse: split.startVerse };
       const label = formatReference(shownRef);
-      const reference = scriptureReference(label, ref.translation);
+      const reference = label; // the translation goes in the label, not on the slide
       const verses = split.verses.length ? split.verses : [{ n: ref.startVerse, text: '' }];
       verses.forEach((v, i) => {
         add(makeSlide('scripture', {
