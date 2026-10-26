@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sunday Slides</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='4' width='20' height='14' rx='2' fill='%23003A5D' stroke='%23B9D2DC' stroke-width='1.5'/%3E%3Crect x='9' y='8' width='1.5' height='6' fill='%23F2F0EC'/%3E%3Crect x='12' y='9' width='7' height='1.2' fill='%23F2F0EC'/%3E%3Crect x='12' y='12' width='5' height='1.2' fill='%23F2F0EC'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Controls -->
+      <aside class="panel" id="panel">
+        <header class="panel-header">
+          <div>
+            <h1>Sunday Slides</h1>
+            <p class="subtitle">Dallas sermon slides for ProPresenter</p>
+          </div>
+          <button class="icon-btn" id="btn-help" title="Help" aria-label="Help">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </button>
+        </header>
+
+        <section class="card" id="drop-zone">
+          <h2>Requests</h2>
+          <div class="button-row">
+            <button class="btn btn-primary" id="btn-load-requests">
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Load requests
+            </button>
+            <button class="btn" id="btn-load-sample">Load sample</button>
+          </div>
+          <input type="file" id="file-input" accept=".txt,text/plain" hidden />
+          <p class="hint">Or drop a <code>_requests.txt</code> file anywhere on the page.</p>
+          <div class="deck-info" id="deck-info" hidden>
+            <div class="deck-title" id="deck-title"></div>
+            <div class="deck-meta" id="deck-meta"></div>
+          </div>
+        </section>
+
+        <section class="card" id="warnings-card" hidden>
+          <h2>Check before Sunday <span class="count-badge" id="warning-count"></span></h2>
+          <ul class="warning-list" id="warning-list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Service</h2>
+          <label class="field">
+            <span>Communicator</span>
+            <input type="text" id="communicator" placeholder="Timothy Ateek" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Theme</span>
+            <select id="theme-select"></select>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="verify-esv" checked />
+            <span>Check scripture against ESV (Bolls) on load</span>
+          </label>
+          <div class="verify-status" id="verify-status"></div>
+        </section>
+
+        <details class="card" id="settings-details">
+          <summary><h2>Settings</h2></summary>
+          <label class="field">
+            <span>Dimmed text opacity <output id="dim-value">40%</output></span>
+            <input type="range" id="dim-opacity" min="0.1" max="0.8" step="0.05" value="0.4" />
+          </label>
+        </details>
+
+        <section class="card">
+          <h2>Export</h2>
+          <button class="btn btn-primary btn-wide" id="btn-export-pro" disabled>
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            ProPresenter bundle
+          </button>
+          <div class="button-row">
+            <button class="btn" id="btn-export-zip" disabled>
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              PNGs (ZIP)
+            </button>
+            <button class="btn" id="btn-export-png" disabled>Current PNG</button>
+          </div>
+          <div class="button-row">
+            <button class="btn" id="btn-share" disabled>
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              Review link
+            </button>
+            <button class="btn" id="btn-proof" disabled>
+              <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+              Proof sheet
+            </button>
+          </div>
+          <div class="progress" id="export-progress" hidden><div class="progress-bar" id="export-progress-bar"></div></div>
+        </section>
+      </aside>
+
+      <!-- Slides -->
+      <main class="main">
+        <div class="review-banner" id="review-banner" hidden>
+          <span>You're reviewing a shared draft. Edits stay in this browser until you share a new link.</span>
+          <button class="btn btn-small" id="btn-copy-review">Copy new link</button>
+          <button class="icon-btn" id="btn-dismiss-review" aria-label="Dismiss">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <div class="segmented" role="tablist">
+            <button class="seg active" id="view-grid" role="tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Grid
+            </button>
+            <button class="seg" id="view-editor" role="tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              Editor
+            </button>
+          </div>
+          <span class="slide-count" id="slide-count"></span>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-small" id="btn-add-slide" disabled>
+            <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Blank slide
+          </button>
+          <button class="btn btn-small" id="btn-bg" title="Preview background">Background: video</button>
+        </div>
+
+        <div class="empty-state" id="empty-state">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          <h2>Load this Sunday's requests</h2>
+          <p>Open the <code>_requests.txt</code> from the service folder's Sermon content, drop it here, or use the link from Start Here.</p>
+        </div>
+
+        <div class="grid" id="grid" hidden></div>
+
+        <div class="editor" id="editor" hidden>
+          <div class="editor-stage">
+            <div class="stage-nav">
+              <button class="icon-btn" id="btn-prev" aria-label="Previous slide">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span id="editor-position"></span>
+              <button class="icon-btn" id="btn-next" aria-label="Next slide">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="canvas-frame bg-video" id="canvas-frame">
+              <canvas id="editor-canvas" width="3840" height="2160"></canvas>
+              <div class="placeholder-overlay" id="placeholder-overlay" hidden></div>
+            </div>
+            <div class="slide-badges" id="editor-badges"></div>
+          </div>
+
+          <div class="editor-fields">
+            <div class="field-row">
+              <label class="field">
+                <span>Slide type</span>
+                <select id="edit-kind">
+                  <option value="scripture">Scripture</option>
+                  <option value="quote">Quote</option>
+                  <option value="point">Point</option>
+                  <option value="text">Text</option>
+                  <option value="blank">Blank</option>
+                  <option value="placeholder">Placeholder</option>
+                </select>
+              </label>
+              <label class="field grow" id="edit-reference-field">
+                <span id="edit-reference-label">Reference</span>
+                <input type="text" id="edit-reference" autocomplete="off" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Text <small>Enter = line break. Wrap words in { } to dim them.</small></span>
+              <textarea id="edit-text" rows="6" spellcheck="true"></textarea>
+            </label>
+            <div class="button-row wrap">
+              <button class="btn btn-small" id="btn-dim">Dim selection</button>
+              <button class="btn btn-small" id="btn-undim">Undim all</button>
+              <button class="btn btn-small" id="btn-relayout" title="Redo automatic line breaks from the original text">Auto line breaks</button>
+              <button class="btn btn-small" id="btn-use-esv" hidden>Use ESV text</button>
+            </div>
+            <div class="esv-compare" id="esv-compare" hidden></div>
+            <div class="button-row wrap">
+              <button class="btn btn-small" id="btn-split" title="Split this slide at the cursor">Split at cursor</button>
+              <button class="btn btn-small" id="btn-merge" title="Merge with the next slide">Merge with next</button>
+              <button class="btn btn-small" id="btn-move-up">Move up</button>
+              <button class="btn btn-small" id="btn-move-down">Move down</button>
+              <button class="btn btn-small" id="btn-insert-blank">Blank after</button>
+              <button class="btn btn-small btn-danger" id="btn-delete">Delete</button>
+            </div>
+
+            <div class="cue-box">
+              <h3>Cues <small>(ProPresenter slide notes)</small></h3>
+              <ul class="cue-list" id="cue-list"></ul>
+              <div class="add-cue">
+                <input type="text" id="new-cue" placeholder="Add a note for the operator" autocomplete="off" />
+                <button class="btn btn-small" id="btn-add-cue">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Help -->
+    <div class="modal" id="help-modal" hidden>
+      <div class="modal-card">
+        <header class="modal-header">
+          <h2>How Sunday Slides works</h2>
+          <button class="icon-btn" data-close aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="modal-body help">
+          <p><strong>1. Load the requests.</strong> The listener on Pro 3 writes <code>YYYYMMDD_DAL_requests.txt</code> into the service folder's <em>Sermon content</em> folder each Sunday morning. Load it with the button, drop it on the page, or open the link on Start Here.</p>
+          <p><strong>2. Look over the warnings.</strong> Flags from the listener and anything the tool noticed (a reference it adjusted, text that doesn't match the ESV, a verse too long for one slide) are listed on the left and badged on each slide.</p>
+          <p><strong>3. Edit.</strong> Scripture comes one verse per slide, without verse numbers, with the passage's reference on every slide. Click a slide to edit its text. Press Enter for a line break, and wrap words in <code>{ }</code> to dim them (for the part of a verse that isn't read). Split, merge, reorder, delete, and add blank slides as needed.</p>
+          <p><strong>4. Cues</strong> become ProPresenter slide notes on the next slide. Turn a cue into its own text slide or a placeholder from the editor.</p>
+          <p><strong>5. Export.</strong> <em>ProPresenter bundle</em> makes a <code>.probundle</code> with live, editable text on the theme's own slides. Double-click it on the Pro machine to import. PNGs (transparent, 3840×2160) are there as a backup.</p>
+          <p><strong>Review link</strong> copies a link with the whole deck in it, for a communicator or producer to check. <strong>Proof sheet</strong> is a printable list of every slide.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proof sheet -->
+    <div class="modal" id="proof-modal" hidden>
+      <div class="modal-card wide">
+        <header class="modal-header">
+          <div>
+            <h2>Proof sheet</h2>
+            <div class="proof-meta" id="proof-meta"></div>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-small" id="btn-print">Print</button>
+            <button class="icon-btn" data-close aria-label="Close">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="modal-body" id="proof-content"></div>
+      </div>
+    </div>
+
+    <div class="drop-overlay" id="drop-overlay" hidden>
+      <div>Drop the request file to load it</div>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
