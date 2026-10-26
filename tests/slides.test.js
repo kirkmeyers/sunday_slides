@@ -114,3 +114,13 @@ test('moves a word down only when a verse would end on a single word', async () 
   assert.equal(avoidShortLastLine('aaaa bbbb cccc dddd eeee ffff gggg on a cross.', 390, m, {}), 'aaaa bbbb cccc dddd eeee ffff gggg\non a cross.');
   assert.equal(avoidShortLastLine('aaaa bbbb cccc dddd eeee ffff gggg shall go.', 360, m, {}), 'aaaa bbbb cccc dddd eeee ffff gggg shall go.');
 });
+
+test('dims and undims by plain-text offsets', async () => {
+  const { setDim, isAllDim, sliceText } = await import('../src/layout.js');
+  const t = setDim('set sail from Crete and incurred', 14, 19, true);
+  assert.equal(t, 'set sail from {Crete} and incurred');
+  assert.equal(isAllDim(t, 14, 20), true); // selection includes the trailing space
+  assert.equal(setDim(t, 14, 20, false), 'set sail from Crete and incurred');
+  assert.equal(setDim('loss.\nTest', 5, 6, true), 'loss.\nTest'); // a lone line break can't be dimmed
+  assert.equal(sliceText('one {two three} four', 4, 13), '{two three}');
+});

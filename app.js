@@ -4,7 +4,8 @@ import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS } from './
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, isNivTranslation } from './src/bible.js';
-import { parseRuns, plainText } from './src/layout.js';
+import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
+import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
 import { exportBundle } from './src/propresenter.js';
 import {
   compressDeckPayload, decompressDeckPayload, decompressOutlinePayload, encodeOutlineLink,
@@ -345,10 +346,85 @@ function drawEditorCanvas() {
     canvas.width = state.size.w;
     canvas.height = state.size.h;
   }
-  drawSlide(canvas.getContext('2d'), slide, state.layouts, state.theme.assets, { dimOpacity: state.dimOpacity });
-  const overlay = $('placeholder-overlay');
-  overlay.hidden = slide.kind !== 'placeholder';
-  overlay.textContent = slide.kind === 'placeholder' ? slide.text || 'Placeholder' : '';
+  // The text itself is drawn by the editable boxes on top
+  drawSlide(canvas.getContext('2d'), slide, state.layouts, state.theme.assets, { dimOpacity: state.dimOpacity, skipText: true });
+}
+
+// Scale the full-size editing layer to the preview frame
+function fitSlideLayer() {
+  const frame = $('canvas-frame');
+  const layer = $('slide-layer');
+  layer.style.width = `${state.size.w}px`;
+  layer.style.height = `${state.size.h}px`;
+  layer.style.transform = `scale(${frame.clientWidth / state.size.w})`;
+}
+
+/** Recompute "too tall" for a slide after its text changes by hand. */
+function updateOverflow(slide) {
+  const layout = slide.layout && state.layouts[slide.layout];
+  if (!layout || slide.kind === 'blank') {
+    slide.overflow = false;
+    return;
+  }
+  const el = layout.text;
+  const lines = wrapLines(applyCase(slide.text || '', el.style), textArea(el).w, measure, el.style).length;
+  slide.overflow = lines > maxLinesFor(el, fontMetrics(el.style));
+}
+
+let activeEditable = null; // the main text editable, for dimming and splitting
+let lastCaret = null; // { start, end } in the main text, kept while focus moves to buttons
+
+/** Build the editable text boxes for the active slide. */
+function renderSlideLayer() {
+  const slide = activeSlide();
+  const layer = $('slide-layer');
+  layer.innerHTML = '';
+  layer.style.setProperty('--dim', state.dimOpacity);
+  activeEditable = null;
+  lastCaret = null;
+  fitSlideLayer();
+  if (!slide) return;
+
+  if (slide.kind === 'placeholder') {
+    const { box, editor } = createTextBox(
+      { bounds: { x: 400, y: 700, w: state.size.w - 800, h: 760 }, valign: 'middle', style: { font: 'Lato-Light', size: 110, lineMultiple: 1, leading: 0, letterSpacing: 0, align: 'center', color: [246, 195, 195] } },
+      { placeholder: 'What goes here' },
+    );
+    box.classList.add('placeholder-box');
+    editor.innerHTML = textToHtml(slide.text);
+    bindEditable(editor, text => {
+      slide.text = text.replace(/[{}]/g, '');
+      slide.edited = true;
+      slideEdited();
+    });
+    layer.appendChild(box);
+    activeEditable = editor;
+    return;
+  }
+  if (!slide.layout || slide.kind === 'blank') return;
+
+  const layout = state.layouts[slide.layout];
+  const main = createTextBox(layout.text, { placeholder: slide.kind === 'scripture' ? 'Verse text' : 'Slide text' });
+  main.editor.innerHTML = textToHtml(slide.needsText ? '' : slide.text);
+  bindEditable(main.editor, text => {
+    slide.text = text;
+    slide.edited = true;
+    if (slide.needsText && plainText(text).trim()) slide.needsText = false;
+    updateOverflow(slide);
+    slideEdited();
+  });
+  layer.appendChild(main.box);
+  activeEditable = main.editor;
+
+  if (layout.reference && (slide.kind === 'scripture' || slide.kind === 'quote')) {
+    const ref = createTextBox(layout.reference, { placeholder: slide.kind === 'quote' ? 'Author' : 'Reference' });
+    ref.editor.innerHTML = textToHtml(slide.reference || '');
+    bindEditable(ref.editor, text => {
+      slide.reference = text.replace(/[{}]/g, '').replace(/\n/g, ' ');
+      slideEdited();
+    });
+    layer.appendChild(ref.box);
+  }
 }
 
 function renderEditorBadges() {
@@ -363,15 +439,8 @@ function renderEditor() {
   if (!slide) return;
   $('editor-position').textContent = `Slide ${state.active + 1} of ${state.slides.length}`;
   $('edit-kind').value = slide.kind;
-  const refField = $('edit-reference-field');
-  refField.hidden = !(slide.kind === 'scripture' || slide.kind === 'quote');
-  $('edit-reference-label').textContent = slide.kind === 'quote' ? 'Author' : 'Reference';
-  $('edit-reference').value = slide.reference || '';
-  const textEl = $('edit-text');
-  if (document.activeElement !== textEl) textEl.value = slide.text || '';
-  textEl.disabled = slide.kind === 'blank';
-  textEl.placeholder = slide.kind === 'placeholder' ? 'What goes here (shows as the cue label)' : '';
   $('btn-relayout').disabled = !slide.layout || slide.kind === 'blank';
+  $('btn-dim').disabled = !slide.layout || slide.kind === 'blank';
 
   // ESV comparison for scripture that doesn't match
   const compare = $('esv-compare');
@@ -403,6 +472,7 @@ function renderEditor() {
 
   renderEditorBadges();
   drawEditorCanvas();
+  renderSlideLayer();
 }
 
 function openEditor(index) {
@@ -441,7 +511,6 @@ let editTimer = null;
 function slideEdited() {
   clearTimeout(editTimer);
   editTimer = setTimeout(() => {
-    drawEditorCanvas();
     renderEditorBadges();
     renderWarnings();
   }, 60);
@@ -487,22 +556,19 @@ function cueAction(cueIndex, act) {
 
 function splitAtCursor() {
   const slide = activeSlide();
-  const textEl = $('edit-text');
-  const pos = textEl.selectionStart;
-  const before = slide.text.slice(0, pos).trim();
-  const after = slide.text.slice(pos).trim();
-  if (!before || !after) {
-    showToast('Put the cursor where the new slide should start.', 'warn');
+  const pos = lastCaret && lastCaret.start;
+  const length = plainText(slide.text).length;
+  if (pos == null || pos <= 0 || pos >= length) {
+    showToast('Click in the slide text where the new slide should start.', 'warn');
     return;
   }
-  const balance = (s, from, to) => {
-    // Keep {dim} markup balanced across the split
-    const open = (s.match(/\{/g) || []).length - (s.match(/\}/g) || []).length;
-    return open > 0 ? (to ? s + '}' : s) : from && /^[^{]*\}/.test(s) ? '{' + s : s;
-  };
-  slide.text = balance(before, false, true);
+  const trim = t => t.replace(/^\s+|\s+$/g, '');
+  const original = slide.text;
+  slide.text = trim(sliceText(original, 0, pos));
   slide.edited = true;
-  const second = { ...slide, id: newId(), text: balance(after, true, false), cues: [], checks: [], edited: true };
+  updateOverflow(slide);
+  const second = { ...slide, id: newId(), text: trim(sliceText(original, pos, length)), cues: [], checks: [], edited: true };
+  updateOverflow(second);
   state.slides.splice(state.active + 1, 0, second);
   renderAll();
   showToast('Split into two slides.');
@@ -535,23 +601,23 @@ function deleteSlide() {
   showToast(slide.cues.length && next ? 'Slide deleted; its cues moved to the neighboring slide.' : 'Slide deleted.');
 }
 
-function dimSelection() {
-  const textEl = $('edit-text');
-  const { selectionStart: s, selectionEnd: e, value } = textEl;
-  if (s === e) return showToast('Select the words to dim first.', 'warn');
+/** Dim the selected words on the slide, or undim them if they're all dimmed already. */
+function toggleDim() {
   const slide = activeSlide();
-  const inner = value.slice(s, e).replace(/[{}]/g, '');
-  slide.text = `${value.slice(0, s)}{${inner}}${value.slice(e)}`.replace(/\}\s*\{/g, ' ');
+  const editor = activeEditable;
+  if (!editor || slide.kind === 'placeholder') return;
+  const sel = selectionOffsets(editor) || lastCaret;
+  if (!sel || sel.start === sel.end) {
+    showToast('Select words in the slide text first.', 'warn');
+    return;
+  }
+  const dim = !isAllDim(slide.text, sel.start, sel.end);
+  slide.text = setDim(slide.text, sel.start, sel.end, dim);
   slide.edited = true;
-  textEl.value = slide.text;
-  slideEdited();
-}
-
-function undimAll() {
-  const slide = activeSlide();
-  slide.text = slide.text.replace(/[{}]/g, '');
-  slide.edited = true;
-  $('edit-text').value = slide.text;
+  editor.innerHTML = textToHtml(slide.text);
+  editor.focus();
+  setSelectionOffsets(editor, sel.start, sel.end);
+  lastCaret = sel;
   slideEdited();
 }
 
@@ -801,25 +867,30 @@ function bindEvents() {
   $('btn-prev').addEventListener('click', () => openEditor(state.active - 1));
   $('btn-next').addEventListener('click', () => openEditor(state.active + 1));
   document.addEventListener('keydown', e => {
-    if (state.view !== 'editor' || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (state.view !== 'editor') return;
+    // Cmd/Ctrl+D dims or undims the selected words while typing on the slide
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && document.activeElement?.isContentEditable) {
+      e.preventDefault();
+      toggleDim();
+      return;
+    }
+    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable;
+    if (typing) return;
     if (e.key === 'ArrowLeft') openEditor(state.active - 1);
     if (e.key === 'ArrowRight') openEditor(state.active + 1);
     if (e.key === 'Escape') setView('grid');
   });
 
-  $('edit-text').addEventListener('input', e => {
-    const slide = activeSlide();
-    slide.text = e.target.value;
-    slide.edited = true;
-    slide.overflow = false;
-    if (slide.needsText && slide.text.trim()) slide.needsText = false;
-    slideEdited();
+  // Remember where the cursor was in the slide text, for Split and Dim
+  document.addEventListener('selectionchange', () => {
+    if (!activeEditable) return;
+    const offsets = selectionOffsets(activeEditable);
+    if (offsets) lastCaret = offsets;
   });
-  $('edit-reference').addEventListener('input', e => {
-    const slide = activeSlide();
-    slide.reference = e.target.value;
-    slideEdited();
-  });
+  // Keep the text selection when clicking these buttons
+  for (const id of ['btn-dim', 'btn-split']) $(id).addEventListener('mousedown', e => e.preventDefault());
+  new ResizeObserver(fitSlideLayer).observe($('canvas-frame'));
+
   $('edit-kind').addEventListener('change', e => {
     const slide = activeSlide();
     slide.kind = e.target.value;
@@ -827,8 +898,7 @@ function bindEvents() {
     slide.edited = true;
     renderAll();
   });
-  $('btn-dim').addEventListener('click', dimSelection);
-  $('btn-undim').addEventListener('click', undimAll);
+  $('btn-dim').addEventListener('click', toggleDim);
   $('btn-relayout').addEventListener('click', autoLineBreaks);
   $('btn-use-esv').addEventListener('click', useEsvText);
   $('btn-split').addEventListener('click', splitAtCursor);
@@ -882,7 +952,7 @@ function bindEvents() {
     state.dimOpacity = +e.target.value;
     $('dim-value').textContent = `${Math.round(state.dimOpacity * 100)}%`;
     storageSet('dimOpacity', state.dimOpacity);
-    if (state.view === 'editor') drawEditorCanvas();
+    $('slide-layer').style.setProperty('--dim', state.dimOpacity);
   });
   $('dim-opacity').addEventListener('change', () => state.view === 'grid' && renderGrid());
   $('verify-esv').addEventListener('change', e => storageSet('verifyEsv', e.target.checked));

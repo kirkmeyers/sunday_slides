@@ -216,3 +216,53 @@ export function splitToFit(text, maxWidth, maxLines, measure, style) {
   }
   return [text];
 }
+
+/** Per-character dim flags for text with {dim} markup: { chars: string, dim: boolean[] }. */
+function dimFlags(text) {
+  let chars = '';
+  const dim = [];
+  for (const run of parseRuns(text)) {
+    chars += run.text;
+    for (let i = 0; i < run.text.length; i++) dim.push(run.dim);
+  }
+  return { chars, dim };
+}
+
+function fromFlags(chars, flags) {
+  // Spaces and line breaks take the dim state of the words on both sides, so braces hug words
+  const dim = flags.map((d, i) => (/\s/.test(chars[i]) ? !!(flags[i - 1] && flags[i + 1]) : d));
+  let out = '';
+  for (let i = 0; i < chars.length; i++) {
+    if (dim[i] && !dim[i - 1]) out += '{';
+    out += chars[i];
+    if (dim[i] && !dim[i + 1]) out += '}';
+  }
+  return out;
+}
+
+/** True if every character between plain-text offsets start and end is dimmed. */
+export function isAllDim(text, start, end) {
+  const { chars, dim } = dimFlags(text);
+  let any = false;
+  for (let i = start; i < end; i++) {
+    if (/\s/.test(chars[i])) continue; // a double-click can pick up the space after a word
+    if (!dim[i]) return false;
+    any = true;
+  }
+  return any;
+}
+
+/** Dim (or undim) the characters between plain-text offsets start and end. */
+export function setDim(text, start, end, value) {
+  const { chars, dim } = dimFlags(text);
+  for (let i = Math.max(0, start); i < Math.min(chars.length, end); i++) {
+    dim[i] = value;
+  }
+  return fromFlags(chars, dim);
+}
+
+/** Part of a text between plain-text offsets, keeping its {dim} markup. */
+export function sliceText(text, start, end) {
+  const { chars, dim } = dimFlags(text);
+  return fromFlags(chars.slice(start, end), dim.slice(start, end));
+}

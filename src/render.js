@@ -100,7 +100,7 @@ function drawText(ctx, element, text, dimOpacity) {
  * @param slide    slide object (see slides.js)
  * @param layouts  resolved theme layouts
  * @param assets   theme image fills by file name -> URL
- * @param options  { dimOpacity }
+ * @param options  { dimOpacity, skipText } (skipText: the editor types over the slide)
  */
 export async function drawSlide(ctx, slide, layouts, assets, options = {}) {
   const dimOpacity = options.dimOpacity ?? 0.4;
@@ -113,9 +113,9 @@ export async function drawSlide(ctx, slide, layouts, assets, options = {}) {
   const layout = layouts[slide.layout];
   for (const el of layout.slide.elements) {
     if (el === layout.text) {
-      drawText(ctx, el, slide.needsText ? '' : slide.text, dimOpacity);
+      if (!options.skipText) drawText(ctx, el, slide.needsText ? '' : slide.text, dimOpacity);
     } else if (el === layout.reference) {
-      drawText(ctx, el, slide.reference, dimOpacity);
+      if (!options.skipText) drawText(ctx, el, slide.reference, dimOpacity);
     } else if (el.image && assets[el.image]) {
       const img = await loadImage(assets[el.image]);
       ctx.globalAlpha = el.opacity;
