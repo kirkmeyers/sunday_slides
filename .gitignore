@@ -1,0 +1,24 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs and editor files
+logs
+*.log
+npm-debug.log*
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Exports and real service material: never commit
+*.zip
+*.docx
+*.probundle
+*.pro
+reference/ProPresenter/
+
+# Local tooling
+.claude/
