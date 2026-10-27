@@ -1,7 +1,8 @@
 /**
  * Translation files loaded on this machine (the NIV 84 made by
- * scripts/niv84.js). They're licensed text, so they never ship with the site:
- * each browser loads the file once from Settings and keeps it in IndexedDB.
+ * scripts/niv84.js, and the ProPresenter Bibles made by scripts/rvbible.js).
+ * They're licensed text, so they never ship with the site: each browser loads
+ * the files once from Settings and keeps them in IndexedDB, keyed by code.
  */
 
 import { setLocalBible } from './bible.js';
@@ -37,9 +38,9 @@ export function verseCount(data) {
   return n;
 }
 
-/** Check a parsed file looks like scripts/niv84.js output. Returns an error message or ''. */
+/** Check a parsed file looks like scripts/niv84.js or scripts/rvbible.js output. Returns an error message or ''. */
 export function validateBible(data) {
-  if (!data || typeof data !== 'object' || !data.translation || !data.books) return 'That isn’t a translation file made by npm run niv84.';
+  if (!data || typeof data !== 'object' || !data.translation || !data.books) return 'That isn’t a translation file made by npm run niv84 or npm run rvbible.';
   if (Object.keys(data.books).length !== 66) return `That file has ${Object.keys(data.books).length} books, not 66.`;
   return '';
 }

@@ -161,7 +161,7 @@ export function isNivTranslation(t) {
   return /^NIV/i.test((t || '').trim());
 }
 
-// Translations loaded from a file on this machine (the NIV 84 from scripts/niv84.js),
+// Translations loaded from a file on this machine (scripts/niv84.js, scripts/rvbible.js),
 // keyed by code: { books: { [bookId]: { [chapter]: { [verse]: text } } } }
 const localBibles = {};
 

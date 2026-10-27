@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.js",
-    "niv84": "node scripts/niv84.js"
+    "niv84": "node scripts/niv84.js",
+    "rvbible": "node scripts/rvbible.js"
   },
   "dependencies": {
     "@fontsource/lato": "^5.3.0",

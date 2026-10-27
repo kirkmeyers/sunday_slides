@@ -15,7 +15,7 @@ It's the Sunday counterpart to [porch_slides](https://github.com/kirkmeyers/porc
   - When the manuscript quotes only the start of a verse, the rest of the verse is shown dimmed.
   - Anything else that differs is flagged, with a side-by-side comparison and a Use ESV text button.
 - **Line breaks like the operators make them:** points are balanced over their lines, breaking at phrase boundaries, and scripture never ends on a one- or two-word line.
-- **Translations:** a translation named in the request file (`Scripture: Romans 8:18 (NIV)`) or the `# translation:` header carries through to the slides. The slide itself shows only the reference; anything other than the ESV is named in the ProPresenter slide and group labels, the grid and the proof sheet, for example "Romans 8:18 (NIV)". In the editor, the Translation picker (ESV, KJV, NIV, NIV 84, NASB, NASB 1995, NLT, ASV, CSB, the same list as porch_slides) switches the whole passage. Text comes from Bolls, or from the manuscript when you switch back to the request file's translation. Bolls doesn't carry the NIV, so NIV verses become "text needed" slides to type into, unless the NIV 84 file is loaded (see below).
+- **Translations:** a translation named in the request file (`Scripture: Romans 8:18 (NIV)`) or the `# translation:` header carries through to the slides. The slide itself shows only the reference; anything other than the ESV is named in the ProPresenter slide and group labels, the grid and the proof sheet, for example "Romans 8:18 (NIV)". In the editor, the Translation picker (ESV, KJV, NIV, NIV 84, NASB, NASB 1995, NLT, ASV, CSB, the same list as porch_slides) switches the whole passage. Text comes from Bolls, or from the manuscript when you switch back to the request file's translation. Bolls doesn't carry the NIV, so NIV verses become "text needed" slides to type into, unless that NIV's translation file is loaded (see below). A loaded translation file is used in place of Bolls.
 - **Quotes** use the scripture layout, with the author in the reference box.
 - **Cues** (`Cue:` lines) ride along as ProPresenter slide notes on the next slide. From the editor, a cue can become its own text slide or a placeholder slide.
 - **Warnings where the operator sees them:**
@@ -89,7 +89,7 @@ The NIV is under copyright, so its text never ships with the site. Each computer
    ```
 
    This writes `reference/niv84.json`, about 4 MB, and lists anything it couldn't place. It reads the PDF's fonts to find books, chapters and verse numbers, and the page layout to put the two columns in order.
-3. In Sunday Slides, open **Settings → Load NIV 84 file** and choose `niv84.json`. The browser keeps it (IndexedDB), and NIV 84 then works like any other translation in the picker.
+3. In Sunday Slides, open **Settings → Load translation files** and choose `niv84.json`. The browser keeps it (IndexedDB), and NIV 84 then works like any other translation in the picker.
 
 Review links carry the finished slide text, so teammates opening one don't need the file. They only need it to pull NIV 84 text themselves.
 
@@ -97,6 +97,37 @@ The PDF isn't a perfect source, so check NIV 84 slides by eye:
 - **Em dashes:** the PDF prints em dashes as hyphens. The converter restores them by rule ("morning—the sixth day", but "seed-bearing" and "twenty-two"), and a few will still be wrong.
 - **LORD:** the PDF lost its small caps. LORD is restored where the PDF leaves a clue and in "Sovereign LORD". In the Old Testament, the rest take their case from the ESV verse when both have the same number of "Lord"s; otherwise they stay "Lord".
 - **Plain "NIV":** this is the 1984 text. A request for plain "NIV" means the 2011 edition, which still has to be typed in.
+
+## Other translations from ProPresenter
+
+ProPresenter's licensed Bibles (`.rvbible` files) can be turned into translation files in the same shape as `niv84.json`, keyed by book id (1-66), chapter and verse. Like the NIV 84, they're licensed text: they stay on this machine and never ship with the site.
+
+1. Copy the `.rvbible` files off the Pro machine.
+2. Run:
+
+   ```bash
+   npm run rvbible -- "/path/to/RV Bibles/"*.rvbible
+   ```
+
+   This writes one file per translation to `reference/` (or the folder after `--out`), about 4 MB each, and lists any verses it had to combine. Each file uses the translation's code from the Translation picker:
+
+   | File | Translation | Code |
+   |---|---|---|
+   | `esv.json` | ESV | `ESV` |
+   | `niv2011.json` | NIV (2011) | `NIV2011` |
+   | `csb.json` | CSB | `CSB17` |
+   | `nasb1995.json` | NASB 1995 | `NASB_1995` |
+   | `nlt.json` | NLT | `NLT` |
+   | `asv.json` | ASV | `ASV` |
+   | `nkjv.json` | NKJV | `NKJV` (not yet in the picker) |
+3. In Sunday Slides, open **Settings → Load translation files** and choose any of them; several can be chosen at once. Each is listed in Settings with its verse count and a Remove button, and loading a translation that's already there replaces it.
+
+An `.rvbible` is a zipped Digital Bible Library bundle, with one USX file per book. The converter keeps only verse text, as the NIV 84 file does: headings, Psalm titles, introductions, footnotes and cross-references are left out, and small-caps "Lord" is printed LORD.
+
+Things to know when reading the output:
+- **Verse counts differ by translation.** Modern translations leave out a few verses that the NKJV and NASB keep (Matthew 17:21, for example), and the CSB prints Acts 24:6–8 as verse 6. These are the translations, not conversion errors.
+- **Combined verses:** the NLT prints 24 pairs of verses in Numbers 1–2 as one ("20-21"). The text is kept under the first number, so the second comes back empty.
+- **A loaded file comes before Bolls.** Once a translation's file is loaded, its text comes from the file instead of Bolls, and the compare box says "local file". That includes the ESV check on load when `esv.json` is loaded.
 
 ## Using the output in ProPresenter
 
@@ -118,7 +149,7 @@ Currently included: **Sunday Acts - Fall** (Lato Light text, Oswald SemiBold ref
 index.html, app.js, style.css   UI
 src/requests.js                 request file parser
 src/bible.js                    references, verse splitting, poetry, Bolls API, ESV comparison
-src/local-bibles.js             translation files kept in the browser (NIV 84)
+src/local-bibles.js             translation files kept in the browser (NIV 84, ProPresenter Bibles)
 src/slides.js                   entries -> slides, automatic line breaks and splits
 src/layout.js                   text wrapping, balancing, fitting
 src/render.js                   canvas drawing for the preview and PNGs
@@ -129,6 +160,7 @@ src/links.js                    #outline= and #review= links
 src/themes/acts-fall/           theme file, content bar, layout config
 src/fonts/                      Lato and Oswald (SIL Open Font License)
 scripts/niv84.js                NIV 84 PDF -> JSON (macOS; uses scripts/pdf-runs.swift)
+scripts/rvbible.js              ProPresenter .rvbible files -> JSON, one per translation
 ```
 
 ## Notes

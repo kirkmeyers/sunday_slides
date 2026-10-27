@@ -70,13 +70,11 @@
             <input type="range" id="dim-opacity" min="0.1" max="0.8" step="0.05" value="0.4" />
           </label>
           <div class="field">
-            <span>NIV 84 text</span>
-            <div class="verify-status" id="niv84-status">Not on this computer. Make the file with npm run niv84, then load it here once.</div>
-            <div class="field-row">
-              <button class="btn grow" id="btn-load-niv84">Load NIV 84 file</button>
-              <button class="btn" id="btn-remove-niv84" hidden>Remove</button>
-            </div>
-            <input type="file" id="niv84-input" accept=".json,application/json" hidden />
+            <span>Translation files</span>
+            <div class="verify-status" id="bibles-status">None on this computer. Make them with npm run niv84 or npm run rvbible, then load them here once.</div>
+            <ul class="local-bibles" id="bibles-list"></ul>
+            <button class="btn" id="btn-load-bibles">Load translation files</button>
+            <input type="file" id="bibles-input" accept=".json,application/json" multiple hidden />
           </div>
         </details>
 
