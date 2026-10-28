@@ -6,7 +6,7 @@ import { parseReference, formatReference, splitVerses, poeticLines, compareVerse
 import { buildSlides, splitQuote } from '../src/slides.js';
 import { parseTheme, resolveLayouts } from '../src/theme.js';
 import { buildPresentation, fillRtf } from '../src/propresenter.js';
-import { decode } from '../src/protobuf.js';
+import { decode, get, getAll, getMessage, asString, asInt } from '../src/protobuf.js';
 
 const sample = name => readFileSync(new URL(`../reference/${name}`, import.meta.url), 'utf8');
 
@@ -107,6 +107,32 @@ test('exports a presentation built on the theme slides', () => {
   // Each slide's elements get their own UUIDs
   const uuids = text.match(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/g);
   assert.ok(!uuids.includes('48FF4333-8E0B-44B3-BC43-D4897E62CB8A'), 'theme element UUID was copied as-is');
+
+  // The template's per-range attributes are dropped; the all-caps reference
+  // gets one capitalization range over its new text
+  const boxes = [];
+  const walk = (bytesIn, depth) => {
+    if (depth > 12) return;
+    let fields;
+    try { fields = decode(bytesIn); } catch { return; }
+    for (const f of fields) {
+      if (f.wire !== 2) continue;
+      const s = asString(f);
+      if (s && s.startsWith('{\\rtf1')) boxes.push(fields);
+      else walk(f.value, depth + 1);
+    }
+  };
+  const scripture = slides.findIndex(s => s.kind === 'scripture');
+  walk(top.filter(f => f.field === 13)[scripture].value, 0);
+  const ranges = boxes.map(b => {
+    const attrs = getMessage(b, 3);
+    return { caps: asInt(get(attrs, 2)) === 1, ranges: getAll(attrs, 13).map(f => decode(f.value)) };
+  });
+  const caps = ranges.filter(r => r.caps);
+  assert.equal(caps.length, 1, 'the reference');
+  assert.equal(caps[0].ranges.length, 1);
+  assert.equal(asInt(get(getMessage(caps[0].ranges[0], 1), 2)), slides[scripture].reference.length);
+  assert.equal(asInt(get(caps[0].ranges[0], 2)), 1);
 });
 
 test('moves a word down only when a verse would end on a single word', async () => {

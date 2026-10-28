@@ -10,7 +10,7 @@
 
 import JSZip from 'jszip';
 import {
-  decode, encode, get, getMessage, setField,
+  decode, encode, get, getMessage, setField, asInt,
   stringField, messageField, varintField, doubleField, floatField,
 } from './protobuf.js';
 import { parseRuns } from './layout.js';
@@ -126,12 +126,26 @@ function relinkImageFill(el, fileName) {
   return setField(el, messageField(9, fill));
 }
 
-/** Copy a template Slide.Element, replacing its text (if given) and relinking images. */
-function buildElement(element, newRtf) {
+/**
+ * Copy a template Slide.Element, replacing its text (if given) and relinking images.
+ * The template's per-range attributes (Text.attributes 13) are sized for its
+ * sample text, so they're dropped. ProPresenter shows all caps only over a
+ * capitalization range, not from the box setting alone, so an all-caps box
+ * gets one range over the new text (`length`, UTF-16).
+ */
+function buildElement(element, newRtf, length = 0) {
   let se = decode(element.raw);
   let el = decode(get(se, 1).value);
   if (newRtf != null) {
-    const text = setField(decode(get(el, 13).value), { field: 5, wire: 2, value: encoder.encode(newRtf) });
+    let text = setField(decode(get(el, 13).value), { field: 5, wire: 2, value: encoder.encode(newRtf) });
+    const attrsF = get(text, 3);
+    if (attrsF) {
+      const attrs = decode(attrsF.value).filter(f => f.field !== 13);
+      if (asInt(get(attrs, 2)) === 1 && length) {
+        attrs.push(messageField(13, [messageField(1, [varintField(2, length)]), varintField(2, 1)]));
+      }
+      text = setField(text, messageField(3, attrs));
+    }
     el = setField(el, messageField(13, text));
   }
   if (element.image) el = relinkImageFill(el, element.image);
@@ -161,13 +175,16 @@ function buildBaseSlide(slide, layouts, size, dimOpacity) {
   if (layout) {
     for (const element of layout.slide.elements) {
       let rtf = null;
+      let text = null;
       if (element === layout.text) {
-        const text = slide.kind === 'blank' || slide.needsText ? '' : slide.text;
+        text = slide.kind === 'blank' || slide.needsText ? '' : slide.text;
         rtf = fillRtf(element.rtf, text, dimOpacity);
       } else if (element === layout.reference) {
-        rtf = fillRtf(element.rtf, slide.kind === 'blank' ? '' : slide.reference || '', dimOpacity);
+        text = slide.kind === 'blank' ? '' : slide.reference || '';
+        rtf = fillRtf(element.rtf, text, dimOpacity);
       }
-      fields.push({ field: 1, wire: 2, value: freshUuids(buildElement(element, rtf)) });
+      const length = text ? parseRuns(text).reduce((n, r) => n + r.text.length, 0) : 0;
+      fields.push({ field: 1, wire: 2, value: freshUuids(buildElement(element, rtf, length)) });
     }
   }
   fields.push(messageField(6, [doubleField(1, size.w), doubleField(2, size.h)]));
