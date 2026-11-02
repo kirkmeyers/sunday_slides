@@ -1,9 +1,9 @@
 /**
- * Licensed theme fonts loaded on this machine, the same way as the NIV 84
- * (ported from porch_slides_v2): Gotham and Acros are commercial, so they never
- * ship with the site. Each browser loads the font files once from Settings and
- * keeps them in IndexedDB; after that the preview uses the real fonts, in any
- * browser, without installing them.
+ * Licensed theme font files kept on this machine (ported from porch_slides_v2).
+ * Gotham and Acros are commercial, so they never ship with the site. Fonts
+ * installed with Font Book come first; these files are the backup for a
+ * computer that doesn't have them installed. Each browser loads the files once
+ * from Settings and keeps them in IndexedDB.
  */
 
 const DB_NAME = 'sunday-slides-fonts';
@@ -73,29 +73,30 @@ export function checkFontFile(buffer, wanted) {
 }
 
 /** Add a stored font to the page under the family name the themes use. */
-async function useFont(record) {
+export async function useFont(record) {
   const face = new FontFace(record.family, record.data, { weight: String(record.weight), style: 'normal' });
   await face.load();
   document.fonts.add(face);
 }
 
-/** Load every stored font into the page. Returns [{ family, weight, name }]. */
-export async function restoreLocalFonts() {
+/**
+ * The font files stored in this browser, [{ family, weight, name, data }],
+ * without using them yet: the caller adds them only for fonts not installed.
+ */
+export async function readLocalFonts() {
   try {
-    const all = (await withStore('readonly', store => store.getAll())) || [];
-    for (const record of all) await useFont(record);
-    return all.map(r => ({ family: r.family, weight: r.weight, name: r.name }));
+    return (await withStore('readonly', store => store.getAll())) || [];
   } catch (err) {
     console.warn('Couldn’t read stored fonts:', err);
     return [];
   }
 }
 
-/** Keep a font file on this machine and start using it. */
+/** Keep a font file on this machine. Returns the stored record. */
 export async function saveLocalFont({ family, weight, name, data }) {
   const record = { family, weight, name, data };
-  await useFont(record);
   await withStore('readwrite', store => store.put(record, `${family}|${weight}`));
+  return record;
 }
 
 /** Forget a stored font (it stays in use until the page reloads). */

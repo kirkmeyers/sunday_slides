@@ -149,11 +149,12 @@ Sunday Generic and NOPAW come next. The Theme menu remembers the last theme used
 
 **Nameplate.** When the theme has a nameplate slide, the deck starts with one: the communicator's name, with the sermon title beneath, both taken from the request file's `# communicator:` and `# title:` lines. Edit it on the slide like any other. With a theme that has no nameplate, it falls back to the Point layout.
 
-**Licensed fonts.** Free fonts (Lato, Oswald) are bundled. Licensed ones (Gotham and Acros for Life of Jacob) are never committed or published. There are two ways to give the preview the real fonts on a computer:
-- **Settings → Theme fonts → Load font files:** choose the font files (`Gotham-Book.otf`, `Gotham-Light.otf`, `Acros.ttf`) once. The browser keeps them (IndexedDB), and this works in any browser without installing anything. It's the same approach as Porch Slides' Neue Haas Grotesk.
-- **Install them with Font Book:** Chrome picks up installed fonts after a restart. Safari doesn't let pages use fonts you install, and fonts activated through Adobe Fonts are hidden from all browsers, so use the Settings route there.
+**Licensed fonts.** Free fonts (Lato, Oswald) are bundled. Licensed ones (Gotham and Acros for Life of Jacob) are never committed or published. Porch Slides handles its fonts the same way. For each theme font, the site uses, in order:
+1. **The installed font.** Install it the normal way with Font Book on the computer that builds the slides, and restart Chrome. This is the default.
+2. **A font file kept in the browser (backup).** When a font isn't installed, the panel flags it under the Theme menu with a **Load font files** button (also in **Settings → Theme fonts**). Choose the files once (`Gotham-Book.otf`, `Gotham-Light.otf`, `Acros.ttf`) and the browser keeps them (IndexedDB). They're used only for fonts that aren't installed. This also covers Safari, which doesn't let pages use fonts you install, and fonts activated through Adobe Fonts, which browsers can't see.
+3. **Otherwise Lato stands in.** The preview's line breaks may differ, but the ProPresenter bundle still names the theme's fonts.
 
-On a development Mac, the files in `reference/fonts/` (gitignored) also work. Where a font is missing, the panel says so, the preview uses Lato and line breaks may differ, but the ProPresenter bundle still names the theme's fonts. A theme declares a licensed font in its `fonts` map with `local` (installed names) and `file` (the name in `reference/fonts/`).
+Settings → Theme fonts shows where each font came from: installed, loaded in this browser, or missing. On a development Mac, the files in `reference/fonts/` (gitignored) also work. Where a font is missing, the panel says so, the preview uses Lato and line breaks may differ, but the ProPresenter bundle still names the theme's fonts. A theme declares a licensed font in its `fonts` map with `local` (installed names) and `file` (the name in `reference/fonts/`).
 
 ## Project layout
 

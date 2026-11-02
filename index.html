@@ -56,7 +56,10 @@
             <span>Theme</span>
             <select id="theme-select"></select>
           </label>
-          <div class="verify-status font-status" id="font-status" hidden></div>
+          <div class="verify-status font-status" id="font-status" hidden>
+            <span id="font-status-text"></span>
+            <button class="btn btn-small" id="btn-font-status-load">Load font files</button>
+          </div>
           <label class="field checkbox">
             <input type="checkbox" id="verify-esv" checked />
             <span>Check scripture against ESV (Bolls) on load</span>
@@ -78,7 +81,7 @@
             <input type="file" id="bibles-input" accept=".json,application/json" multiple hidden />
           </div>
           <div class="field">
-            <span>Theme fonts <small>licensed, never published</small></span>
+            <span>Theme fonts <small>backup when not installed</small></span>
             <div class="verify-status" id="font-file-status"></div>
             <div class="field-row">
               <button class="btn grow" id="btn-load-fonts">Load font files</button>

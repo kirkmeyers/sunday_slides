@@ -4,7 +4,7 @@ import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSl
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, canFetchTranslation, textSource, translationName, TRANSLATIONS } from './src/bible.js';
-import { restoreLocalFonts, saveLocalFont, removeLocalFont, fontNames } from './src/local-fonts.js';
+import { readLocalFonts, useFont, saveLocalFont, removeLocalFont, fontNames } from './src/local-fonts.js';
 import { restoreLocalBibles, saveLocalBible, removeLocalBible, validateBible, verseCount } from './src/local-bibles.js';
 import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
 import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
@@ -109,23 +109,45 @@ const SPINNER = '<svg class="btn-icon btn-spinner" width="16" height="16" viewBo
 
 // ---------- Theme ----------
 /**
- * Licensed theme fonts (Gotham, Acros) aren't bundled. Register each one from
- * the computer's installed copy, or on a development Mac from reference/fonts
- * (gitignored). Returns the families that couldn't be found.
+ * Licensed theme fonts (Gotham, Acros) aren't bundled. For each one, in order:
+ * 1. the copy installed with Font Book (or, on a development Mac, reference/fonts),
+ * 2. the backup: a font file loaded in Settings and kept in this browser,
+ * 3. otherwise it's missing: the panel flags it and the preview uses Lato.
+ * Returns the families that are missing.
  */
-const fontFaces = {};
-const hasFont = f => [...document.fonts].some(face => face.family.replace(/["']/g, '') === f.family && String(face.weight) === String(f.weight) && face.status === 'loaded');
+const fontFaces = {}; // 'family weight' -> Promise<boolean>, the installed copy
+const fontSource = {}; // 'family weight' -> 'installed' | 'stored' | 'missing'
+let storedFonts = []; // font files kept in this browser: [{ family, weight, name, data }]
+const fontKey = f => `${f.family} ${f.weight}`;
+const storedFont = f => storedFonts.find(r => r.family === f.family && String(r.weight) === String(f.weight));
+
 async function loadLicensedFonts(config) {
   const missing = new Set();
   for (const f of Object.values(config.fonts)) {
-    if (!f.local || hasFont(f)) continue; // already here, e.g. loaded in Settings
-    const key = `${f.family} ${f.weight}`;
+    if (!f.local) continue;
+    const key = fontKey(f);
+    if (fontSource[key] === 'installed' || fontSource[key] === 'stored') continue;
     if (!fontFaces[key]) {
       const sources = [...f.local.map(n => `local('${n}')`), `url('reference/fonts/${f.file}')`].join(', ');
       const face = new FontFace(f.family, sources, { weight: String(f.weight) });
       fontFaces[key] = face.load().then(loaded => (document.fonts.add(loaded), true), () => false);
     }
-    if (!(await fontFaces[key])) missing.add(f.family);
+    if (await fontFaces[key]) {
+      fontSource[key] = 'installed';
+      continue;
+    }
+    const record = storedFont(f);
+    if (record) {
+      try {
+        await useFont(record);
+        fontSource[key] = 'stored';
+        continue;
+      } catch (err) {
+        console.warn(`Couldn’t use the stored ${f.family} file:`, err);
+      }
+    }
+    fontSource[key] = 'missing';
+    missing.add(f.family);
   }
   return [...missing];
 }
@@ -143,11 +165,11 @@ async function loadTheme(config) {
   const missing = await loadLicensedFonts(config);
   await Promise.all(Object.values(config.fonts).filter(f => !f.local).map(f => document.fonts.load(`${f.weight} 100px "${f.family}"`)));
   await document.fonts.ready;
-  const status = $('font-status');
-  status.hidden = !missing.length;
-  status.textContent = missing.length
-    ? `${missing.join(' and ')} ${missing.length === 1 ? 'isn’t' : 'aren’t'} installed on this computer, so the preview uses Lato and line breaks may differ. The ProPresenter bundle still uses the theme’s fonts.`
+  $('font-status').hidden = !missing.length;
+  $('font-status-text').textContent = missing.length
+    ? `${missing.join(' and ')} ${missing.length === 1 ? 'isn’t' : 'aren’t'} installed on this computer, so the preview uses Lato and line breaks may differ. Install ${missing.length === 1 ? 'it' : 'them'} with Font Book, or load the font files. The ProPresenter bundle still uses the theme’s fonts.`
     : '';
+  if ($('font-file-status')) renderFontFiles();
 }
 
 /** The theme layout for a kind of slide, or Point when this theme has no such layout. */
@@ -1179,6 +1201,7 @@ function bindEvents() {
   });
   $('dim-opacity').addEventListener('change', () => state.view === 'grid' && renderGrid());
   $('btn-load-fonts').addEventListener('click', () => $('fonts-input').click());
+  $('btn-font-status-load').addEventListener('click', () => $('fonts-input').click());
   $('fonts-input').addEventListener('change', async e => {
     const files = [...e.target.files];
     e.target.value = '';
@@ -1188,6 +1211,7 @@ function bindEvents() {
     if (!confirm('Remove the theme font files from this browser?')) return;
     for (const f of storedFonts) await removeLocalFont(f.family, f.weight);
     storedFonts = [];
+    for (const key of Object.keys(fontSource)) if (fontSource[key] === 'stored') fontSource[key] = 'missing';
     renderFontFiles();
     showToast('Font files removed from this browser. Reload the page to see the stand-in.');
   });
@@ -1220,22 +1244,21 @@ function bindEvents() {
 }
 
 // ---------- Theme font files (Settings) ----------
-// Licensed fonts loaded once per browser, like the translation files (and Porch Slides' Neue Haas)
-let storedFonts = []; // [{ family, weight, name }] kept in this browser
+// The backup for a computer without the fonts installed (as in Porch Slides)
 
 function fontLabel(f) {
   return f.local[0];
 }
 
 function renderFontFiles() {
-  const stored = LICENSED_FONTS.filter(f => storedFonts.some(s => s.family === f.family && String(s.weight) === String(f.weight)));
-  const needed = LICENSED_FONTS.filter(f => !hasFont(f));
+  const fonts = LICENSED_FONTS.filter(f => fontSource[fontKey(f)]); // the ones a loaded theme has asked for
+  const by = source => fonts.filter(f => fontSource[fontKey(f)] === source).map(fontLabel);
   const parts = [];
-  if (stored.length) parts.push(`Loaded in this browser: ${stored.map(fontLabel).join(', ')}.`);
-  if (needed.length) parts.push(`Not on this computer: ${needed.map(fontLabel).join(', ')}. Install them, or load the font files here once.`);
-  if (!parts.length) parts.push(`Installed on this computer: ${LICENSED_FONTS.map(fontLabel).join(', ')}.`);
-  $('font-file-status').textContent = parts.join(' ');
-  $('btn-remove-fonts').hidden = !stored.length;
+  if (by('installed').length) parts.push(`Installed: ${by('installed').join(', ')}.`);
+  if (by('stored').length) parts.push(`Loaded in this browser: ${by('stored').join(', ')}.`);
+  if (by('missing').length) parts.push(`Missing: ${by('missing').join(', ')}. Install with Font Book, or load the font files here.`);
+  $('font-file-status').textContent = parts.join(' ') || 'This theme uses no licensed fonts.';
+  $('btn-remove-fonts').hidden = !storedFonts.length;
 }
 
 async function loadFontFiles(files) {
@@ -1256,8 +1279,8 @@ async function loadFontFiles(files) {
       continue;
     }
     try {
-      await saveLocalFont({ family: font.family, weight: font.weight, name: fontLabel(font), data });
-      storedFonts = [...storedFonts.filter(s => !(s.family === font.family && String(s.weight) === String(font.weight))), { family: font.family, weight: font.weight, name: fontLabel(font) }];
+      const record = await saveLocalFont({ family: font.family, weight: font.weight, name: fontLabel(font), data });
+      storedFonts = [...storedFonts.filter(s => !(s.family === font.family && String(s.weight) === String(font.weight))), record];
       loaded.push(fontLabel(font));
     } catch (err) {
       console.error(err);
@@ -1265,13 +1288,13 @@ async function loadFontFiles(files) {
     }
   }
   if (loaded.length) {
-    // Measure everything again with the real fonts
+    // Use them for any font that isn't installed, and measure everything again
     await loadTheme(state.theme);
     state.slides = relayout(state.slides);
     renderAll();
   }
   renderFontFiles();
-  if (loaded.length) showToast(`Loaded ${loaded.join(', ')} on this computer.`);
+  if (loaded.length) showToast(`Kept ${loaded.join(', ')} in this browser. Installed fonts still come first.`);
   if (skipped.length) showToast(`Not a theme font: ${skipped.join(', ')}. The themes use ${LICENSED_FONTS.map(fontLabel).join(', ')}.`, 'warn', 7000);
 }
 
@@ -1332,7 +1355,7 @@ async function init() {
   $('dim-value').textContent = `${Math.round(state.dimOpacity * 100)}%`;
   $('verify-esv').checked = storageGet('verifyEsv', true);
   $('theme-select').innerHTML = THEMES.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  storedFonts = await restoreLocalFonts(); // before the theme, so its fonts count as present
+  storedFonts = await readLocalFonts(); // the backup, used only for fonts that aren't installed
   const theme = THEMES.find(t => t.id === storageGet('theme', '')) || THEMES[0];
   await loadTheme(theme);
   $('theme-select').value = theme.id;
