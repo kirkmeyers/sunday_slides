@@ -188,3 +188,27 @@ test('wrapped lines are marked for justified text; the last line and lines befor
   const lines = wrapLines('one two three four five\nsix seven', 100, measure, {});
   assert.deepEqual(lines.map(l => l.wrapped), [true, true, false, false]);
 });
+
+test('a justified run of scripture slides shares one width that avoids one-word last lines', async () => {
+  const { fitRunWidths } = await import('../src/slides.js');
+  const { countOrphans, wrapLines } = await import('../src/layout.js');
+  // 10px a character; a 200px box (210 with the 5px insets), up to 3 lines
+  const style = { align: 'justify', size: 10, lineMultiple: 1, leading: 0 };
+  const el = { bounds: { x: 0, y: 0, w: 210, h: 30 }, style };
+  const layouts = { scripture: { text: el } };
+  const measure = s => s.length * 10;
+  const metricsFor = () => ({ ascent: 8, descent: 2 });
+  const slide = text => ({ kind: 'scripture', layout: 'scripture', text, edited: false });
+  // At 200px the first line is exactly full and "ee" sits alone; 6px narrower wraps it as
+  // "aaaa bbbb cccc" / "ddddd ee"
+  const run = [slide('aaaa bbbb cccc ddddd ee'), slide('one two three')];
+  assert.equal(countOrphans(wrapLines(run[0].text, 200, measure, style)), 1);
+  fitRunWidths(run, layouts, measure, metricsFor);
+  assert.equal(run[0].widthDelta, -6);
+  assert.equal(run[0].widthDelta, run[1].widthDelta); // back-to-back verses keep one width
+  assert.equal(countOrphans(wrapLines(run[0].text, 200 + run[0].widthDelta, measure, style)), 0);
+  // A left-aligned box keeps its width
+  const left = [{ ...slide('aaaa bbbb cccc ddddd ee'), widthDelta: 12 }];
+  fitRunWidths(left, { scripture: { text: { ...el, style: { ...style, align: 'left' } } } }, measure, metricsFor);
+  assert.equal(left[0].widthDelta, 0);
+});

@@ -22,7 +22,7 @@
  */
 
 import { parseReference, formatReference, splitVerses, poeticLines, isPoeticBook, smartQuotes, translationName } from './bible.js';
-import { wrapLines, maxLinesFor, balanceLines, avoidShortLastLine, splitToFit, textArea } from './layout.js';
+import { wrapLines, maxLinesFor, balanceLines, avoidShortLastLine, splitToFit, textArea, applyCase, countOrphans } from './layout.js';
 
 let nextId = 1;
 export function newId() {
@@ -219,7 +219,9 @@ export function layoutSlides(slides, layouts, measure, metricsFor) {
     const maxLines = maxLinesFor(el, metricsFor(style));
     const chunks = poetic ? [text] : splitToFit(text, width, maxLines, measure, style);
     chunks.forEach((chunk, i) => {
-      let t = poetic ? chunk : avoidShortLastLine(chunk, width, measure, style);
+      // A justified box avoids one-word last lines by width (fitRunWidths), not a line break,
+      // which would leave a short unstretched line in the middle of the block
+      let t = poetic || style.align === 'justify' ? chunk : avoidShortLastLine(chunk, width, measure, style);
       const tooTall = wrapLines(t, width, measure, style).length > maxLines;
       out.push({
         ...slide,
@@ -235,3 +237,73 @@ export function layoutSlides(slides, layouts, measure, metricsFor) {
   }
   return out;
 }
+
+// Justified scripture: the most a run of slides may grow or shrink, as a share
+// of the box width, and the step between widths tried (px at 4K)
+const MAX_WIDTH_CHANGE = 0.05;
+const WIDTH_STEP = 6;
+const runWidthCache = new Map();
+
+/**
+ * Give each run of back-to-back scripture slides in a justified box one shared
+ * width (slide.widthDelta): the smallest change, wider or narrower, that leaves
+ * the fewest one-word last lines without making any slide too tall. A run's
+ * width depends only on its automatic text, so typing on a slide never moves
+ * it; slides edited by hand follow their run. Changes slides in place.
+ */
+export function fitRunWidths(slides, layouts, measure, metricsFor) {
+  const inRun = s => s.kind === 'scripture' && s.layout && layouts[s.layout]?.text.style.align === 'justify';
+  let i = 0;
+  while (i < slides.length) {
+    if (!inRun(slides[i])) {
+      if (slides[i].widthDelta) slides[i].widthDelta = 0; // e.g. after switching to a left-aligned theme
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < slides.length && inRun(slides[j]) && slides[j].layout === slides[i].layout) j += 1;
+    const run = slides.slice(i, j);
+    const el = layouts[run[0].layout].text;
+    const auto = run.filter(s => !s.edited);
+    if (auto.length) {
+      const key = `${run[0].layout}|${textArea(el).w}|${auto.map(s => s.text).join('\u0001')}`;
+      if (!runWidthCache.has(key)) runWidthCache.set(key, bestRunWidth(auto, el, measure, metricsFor));
+      const delta = runWidthCache.get(key);
+      for (const s of run) s.widthDelta = delta;
+      const maxLines = maxLinesFor(el, metricsFor(el.style));
+      for (const s of auto) s.overflow = wrapLines(applyCase(s.text, el.style), textArea(el).w + delta, measure, el.style).length > maxLines;
+    }
+    i = j;
+  }
+  return slides;
+}
+
+function bestRunWidth(run, el, measure, metricsFor) {
+  const style = el.style;
+  const base = textArea(el).w;
+  const maxLines = maxLinesFor(el, metricsFor(style));
+  const texts = run.map(s => applyCase(s.text || '', style));
+  const tooTallAlready = texts.map(t => wrapLines(t, base, measure, style).length > maxLines);
+  const limit = Math.floor((base * MAX_WIDTH_CHANGE) / WIDTH_STEP) * WIDTH_STEP;
+  // 0, then -6, +6, -12, +12, ... so the smallest change wins a tie
+  const deltas = [0];
+  for (let d = WIDTH_STEP; d <= limit; d += WIDTH_STEP) deltas.push(-d, d);
+  let best = 0;
+  let bestOrphans = Infinity;
+  for (const d of deltas) {
+    let orphans = 0;
+    let fits = true;
+    texts.forEach((t, k) => {
+      const lines = wrapLines(t, base + d, measure, style);
+      if (lines.length > maxLines && !tooTallAlready[k]) fits = false;
+      orphans += countOrphans(lines);
+    });
+    if (fits && orphans < bestOrphans) {
+      best = d;
+      bestOrphans = orphans;
+      if (!orphans) break;
+    }
+  }
+  return best;
+}
+

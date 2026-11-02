@@ -1,12 +1,12 @@
 import JSZip from 'jszip';
 import { parseRequestFile, extractCommunicatorLastName, serviceDateCode } from './src/requests.js';
-import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel, nameplateSlide } from './src/slides.js';
+import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel, nameplateSlide, fitRunWidths } from './src/slides.js';
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, canFetchTranslation, textSource, translationName, TRANSLATIONS } from './src/bible.js';
 import { readLocalFonts, useFont, saveLocalFont, removeLocalFont, fontNames } from './src/local-fonts.js';
 import { restoreLocalBibles, saveLocalBible, removeLocalBible, validateBible, verseCount } from './src/local-bibles.js';
-import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
+import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText, withWidth } from './src/layout.js';
 import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
 import { exportBundle } from './src/propresenter.js';
 import {
@@ -468,7 +468,7 @@ function updateOverflow(slide) {
     slide.overflow = false;
     return;
   }
-  const el = layout.text;
+  const el = withWidth(layout.text, slide.widthDelta);
   const lines = wrapLines(applyCase(slide.text || '', el.style), textArea(el).w, measure, el.style).length;
   slide.overflow = lines > maxLinesFor(el, fontMetrics(el.style));
 }
@@ -507,7 +507,7 @@ function renderSlideLayer() {
 
   const layout = state.layouts[slide.layout];
   const placeholders = { scripture: 'Verse text', nameplate: 'Communicator' };
-  const main = createTextBox(layout.text, { placeholder: placeholders[slide.kind] || 'Slide text' });
+  const main = createTextBox(withWidth(layout.text, slide.widthDelta), { placeholder: placeholders[slide.kind] || 'Slide text' });
   main.editor.innerHTML = textToHtml(slide.needsText ? '' : slide.text);
   bindEditable(main.editor, { onSplit: splitAtCursor }, text => {
     slide.text = text;
@@ -611,6 +611,8 @@ function setView(view) {
 
 function renderAll() {
   const has = state.slides.length > 0;
+  // One width per run of back-to-back justified scripture slides (cached; cheap when nothing changed)
+  if (has) fitRunWidths(state.slides, state.layouts, measure, fontMetrics);
   for (const id of ['btn-export-pro', 'btn-export-zip', 'btn-export-png', 'btn-share', 'btn-proof', 'btn-add-slide']) $(id).disabled = !has;
   const counts = state.slides.reduce((acc, s) => ((acc[s.kind] = (acc[s.kind] || 0) + 1), acc), {});
   $('slide-count').textContent = has

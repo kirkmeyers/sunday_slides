@@ -13,7 +13,7 @@ import {
   decode, encode, get, getMessage, setField, asInt,
   stringField, messageField, varintField, doubleField, floatField,
 } from './protobuf.js';
-import { parseRuns } from './layout.js';
+import { parseRuns, withWidth } from './layout.js';
 import { KIND_LABELS, referenceLabel } from './slides.js';
 
 const encoder = new TextEncoder();
@@ -133,9 +133,16 @@ function relinkImageFill(el, fileName) {
  * capitalization range, not from the box setting alone, so an all-caps box
  * gets one range over the new text (`length`, UTF-16).
  */
-function buildElement(element, newRtf, length = 0) {
+function buildElement(element, newRtf, length = 0, bounds = null) {
   let se = decode(element.raw);
   let el = decode(get(se, 1).value);
+  if (bounds) {
+    // A justified scripture box set a little wider or narrower for this slide
+    el = setField(el, messageField(3, [
+      messageField(1, [doubleField(1, bounds.x), doubleField(2, bounds.y)]),
+      messageField(2, [doubleField(1, bounds.w), doubleField(2, bounds.h)]),
+    ]));
+  }
   if (newRtf != null) {
     let text = setField(decode(get(el, 13).value), { field: 5, wire: 2, value: encoder.encode(newRtf) });
     const attrsF = get(text, 3);
@@ -184,7 +191,8 @@ function buildBaseSlide(slide, layouts, size, dimOpacity) {
         rtf = fillRtf(element.rtf, text, dimOpacity);
       }
       const length = text ? parseRuns(text).reduce((n, r) => n + r.text.length, 0) : 0;
-      fields.push({ field: 1, wire: 2, value: freshUuids(buildElement(element, rtf, length)) });
+      const bounds = element === layout.text && slide.widthDelta ? withWidth(element, slide.widthDelta).bounds : null;
+      fields.push({ field: 1, wire: 2, value: freshUuids(buildElement(element, rtf, length, bounds)) });
     }
   }
   fields.push(messageField(6, [doubleField(1, size.w), doubleField(2, size.h)]));

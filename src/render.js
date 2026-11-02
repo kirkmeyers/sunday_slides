@@ -4,7 +4,7 @@
  * content bar) and its text boxes, filled with the slide's text.
  */
 
-import { wrapLines, linePitch, baselineOffset, textArea, applyCase } from './layout.js';
+import { wrapLines, linePitch, baselineOffset, textArea, applyCase, withWidth } from './layout.js';
 
 const measureCanvas = document.createElement('canvas');
 const measureCtx = measureCanvas.getContext('2d');
@@ -124,7 +124,7 @@ export async function drawSlide(ctx, slide, layouts, assets, options = {}) {
   const layout = layouts[slide.layout];
   for (const el of layout.slide.elements) {
     if (el === layout.text) {
-      if (!options.skipText) drawText(ctx, el, slide.needsText ? '' : slide.text, dimOpacity);
+      if (!options.skipText) drawText(ctx, withWidth(el, slide.widthDelta), slide.needsText ? '' : slide.text, dimOpacity);
     } else if (el === layout.reference) {
       if (!options.skipText) drawText(ctx, el, slide.reference, dimOpacity);
     } else if (el.image && assets[el.image]) {

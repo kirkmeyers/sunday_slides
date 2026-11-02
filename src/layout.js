@@ -111,6 +111,29 @@ export function textArea(element) {
   return { x: x + TEXT_INSET, w: w - TEXT_INSET * 2 };
 }
 
+/**
+ * A text element at a slide's own width: justified scripture can run a little
+ * wider or narrower (slide.widthDelta, in px) to avoid a one-word last line.
+ * The box stays centered.
+ */
+export function withWidth(element, delta) {
+  if (!delta) return element;
+  const b = element.bounds;
+  return { ...element, bounds: { ...b, x: b.x - delta / 2, w: b.w + delta } };
+}
+
+/**
+ * One-word last lines: paragraphs (text between line breaks) that wrap and end
+ * on a single word.
+ */
+export function countOrphans(lines) {
+  let n = 0;
+  lines.forEach((line, i) => {
+    if (!line.wrapped && line.words === 1 && i > 0 && lines[i - 1].wrapped) n += 1;
+  });
+  return n;
+}
+
 /** Apply the text box's capitalization (e.g. references set in all caps). */
 export function applyCase(text, style) {
   return style.caps ? text.toUpperCase() : text;
