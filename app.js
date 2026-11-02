@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { parseRequestFile, extractCommunicatorLastName, serviceDateCode } from './src/requests.js';
-import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel } from './src/slides.js';
+import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSlides, referenceLabel, nameplateSlide } from './src/slides.js';
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, canFetchTranslation, textSource, translationName, TRANSLATIONS } from './src/bible.js';
@@ -12,9 +12,10 @@ import {
   compressDeckPayload, decompressDeckPayload, decompressOutlinePayload, encodeOutlineLink,
 } from './src/links.js';
 import actsFall from './src/themes/acts-fall/index.js';
+import lifeOfJacob from './src/themes/life-of-jacob/index.js';
 import sampleRequests from './reference/20261025_DAL_requests.txt?raw';
 
-const THEMES = [actsFall];
+const THEMES = [lifeOfJacob, actsFall];
 
 // ---------- State ----------
 const state = {
@@ -97,6 +98,27 @@ const ICON_WARN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" s
 const SPINNER = '<svg class="btn-icon btn-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>';
 
 // ---------- Theme ----------
+/**
+ * Licensed theme fonts (Gotham, Acros) aren't bundled. Register each one from
+ * the computer's installed copy, or on a development Mac from reference/fonts
+ * (gitignored). Returns the families that couldn't be found.
+ */
+const fontFaces = {};
+async function loadLicensedFonts(config) {
+  const missing = new Set();
+  for (const f of Object.values(config.fonts)) {
+    if (!f.local) continue;
+    const key = `${f.family} ${f.weight}`;
+    if (!fontFaces[key]) {
+      const sources = [...f.local.map(n => `local('${n}')`), `url('reference/fonts/${f.file}')`].join(', ');
+      const face = new FontFace(f.family, sources, { weight: String(f.weight) });
+      fontFaces[key] = face.load().then(loaded => (document.fonts.add(loaded), true), () => false);
+    }
+    if (!(await fontFaces[key])) missing.add(f.family);
+  }
+  return [...missing];
+}
+
 async function loadTheme(config) {
   const bytes = new Uint8Array(await (await fetch(config.themeUrl)).arrayBuffer());
   const parsed = parseTheme(bytes);
@@ -107,8 +129,28 @@ async function loadTheme(config) {
   setFontMap(config.fonts);
   clearMetricsCache();
   // Wait for the slide fonts before anything is measured
-  await Promise.all(Object.values(config.fonts).map(f => document.fonts.load(`${f.weight} 100px "${f.family}"`)));
+  const missing = await loadLicensedFonts(config);
+  await Promise.all(Object.values(config.fonts).filter(f => !f.local).map(f => document.fonts.load(`${f.weight} 100px "${f.family}"`)));
   await document.fonts.ready;
+  const status = $('font-status');
+  status.hidden = !missing.length;
+  status.textContent = missing.length
+    ? `${missing.join(' and ')} ${missing.length === 1 ? 'isn’t' : 'aren’t'} installed on this computer, so the preview uses Lato and line breaks may differ. The ProPresenter bundle still uses the theme’s fonts.`
+    : '';
+}
+
+/** The theme layout for a kind of slide, or Point when this theme has no such layout. */
+function layoutKey(kind) {
+  const key = layoutForKind(kind);
+  return key && !state.layouts[key] ? 'point' : key;
+}
+
+/** Fit slides to the current theme: put a nameplate first when it has one, and fall back where it lacks a layout. */
+function fitToTheme(slides, { addNameplate = true } = {}) {
+  const fitted = slides.map(s => (s.layout && !state.layouts[s.layout] ? { ...s, layout: layoutKey(s.kind) } : s.kind === 'nameplate' ? { ...s, layout: layoutKey('nameplate') } : s));
+  const hasNameplate = fitted.some(s => s.kind === 'nameplate');
+  if (addNameplate && state.layouts.nameplate && !hasNameplate && (state.header.communicator || state.header.title)) fitted.unshift(nameplateSlide(state.header));
+  return fitted;
 }
 
 function relayout(slides) {
@@ -125,7 +167,7 @@ async function loadRequestText(text, sourceLabel) {
   state.header = parsed.header;
   state.flags = parsed.flags;
   state.loadWarnings = parsed.warnings;
-  state.slides = relayout(buildSlides(parsed));
+  state.slides = relayout(fitToTheme(buildSlides(parsed)));
   state.active = 0;
   if (parsed.header.communicator) $('communicator').value = parsed.header.communicator;
   $('review-banner').hidden = true;
@@ -431,7 +473,8 @@ function renderSlideLayer() {
   if (!slide.layout || slide.kind === 'blank') return;
 
   const layout = state.layouts[slide.layout];
-  const main = createTextBox(layout.text, { placeholder: slide.kind === 'scripture' ? 'Verse text' : 'Slide text' });
+  const placeholders = { scripture: 'Verse text', nameplate: 'Communicator' };
+  const main = createTextBox(layout.text, { placeholder: placeholders[slide.kind] || 'Slide text' });
   main.editor.innerHTML = textToHtml(slide.needsText ? '' : slide.text);
   bindEditable(main.editor, { onSplit: splitAtCursor }, text => {
     slide.text = text;
@@ -443,8 +486,8 @@ function renderSlideLayer() {
   layer.appendChild(main.box);
   activeEditable = main.editor;
 
-  if (layout.reference && (slide.kind === 'scripture' || slide.kind === 'quote')) {
-    const ref = createTextBox(layout.reference, { placeholder: slide.kind === 'quote' ? 'Author' : 'Reference' });
+  if (layout.reference && ['scripture', 'quote', 'nameplate'].includes(slide.kind)) {
+    const ref = createTextBox(layout.reference, { placeholder: { quote: 'Author', nameplate: 'Sermon title' }[slide.kind] || 'Reference' });
     ref.editor.innerHTML = textToHtml(slide.reference || '');
     bindEditable(ref.editor, {}, text => {
       slide.reference = text.replace(/[{}]/g, '').replace(/\n/g, ' ');
@@ -465,6 +508,7 @@ function renderEditor() {
   const slide = activeSlide();
   if (!slide) return;
   $('editor-position').textContent = `Slide ${state.active + 1} of ${state.slides.length}`;
+  $('edit-kind').querySelector('[value="nameplate"]').hidden = !state.layouts.nameplate;
   $('edit-kind').value = slide.kind;
   const scripture = slide.kind === 'scripture' && slide.ref;
   $('translation-field').hidden = !scripture;
@@ -904,7 +948,7 @@ async function loadFromHash() {
       state.header = payload.header || {};
       state.flags = payload.flags || [];
       state.loadWarnings = [];
-      state.slides = payload.slides || [];
+      state.slides = fitToTheme(payload.slides || [], { addNameplate: false }); // a shared draft stays as it was sent
       state.active = 0;
       $('communicator').value = payload.communicator || '';
       $('review-banner').hidden = false;
@@ -1060,7 +1104,7 @@ function bindEvents() {
   $('edit-kind').addEventListener('change', e => {
     const slide = activeSlide();
     slide.kind = e.target.value;
-    slide.layout = layoutForKind(slide.kind);
+    slide.layout = layoutKey(slide.kind);
     slide.edited = true;
     renderAll();
   });
@@ -1143,7 +1187,8 @@ function bindEvents() {
   $('theme-select').addEventListener('change', async e => {
     const theme = THEMES.find(t => t.id === e.target.value);
     await loadTheme(theme);
-    state.slides = relayout(state.slides);
+    storageSet('theme', theme.id);
+    state.slides = relayout(fitToTheme(state.slides));
     renderAll();
   });
 
@@ -1207,7 +1252,9 @@ async function init() {
   $('dim-value').textContent = `${Math.round(state.dimOpacity * 100)}%`;
   $('verify-esv').checked = storageGet('verifyEsv', true);
   $('theme-select').innerHTML = THEMES.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  await loadTheme(THEMES[0]);
+  const theme = THEMES.find(t => t.id === storageGet('theme', '')) || THEMES[0];
+  await loadTheme(theme);
+  $('theme-select').value = theme.id;
   renderLocalBibles(await restoreLocalBibles());
   bindEvents();
   renderAll();

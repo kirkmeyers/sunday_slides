@@ -134,7 +134,7 @@ export function createTextBox(element, { placeholder = '' } = {}) {
     font: cssFont(style),
     lineHeight: `${linePitch(style, metrics)}px`,
     letterSpacing: `${style.letterSpacing || 0}px`,
-    textAlign: style.align === 'justify' ? 'left' : style.align,
+    textAlign: style.align, // CSS justifies like ProPresenter: not the last line or lines ending at a break
     textTransform: style.caps ? 'uppercase' : 'none',
     color: `rgb(${r}, ${g}, ${b})`,
   });

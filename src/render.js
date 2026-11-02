@@ -16,7 +16,8 @@ export function setFontMap(map) {
 
 export function cssFont(style) {
   const f = fontMap[style.font] || { family: 'Lato', weight: 400 };
-  return `${f.weight} ${style.size}px "${f.family}"`;
+  // Lato stands in when a licensed theme font isn't installed on this computer
+  return `${f.weight} ${style.size}px "${f.family}", "Lato", sans-serif`;
 }
 
 function applyFont(ctx, style) {
@@ -86,6 +87,16 @@ function drawText(ctx, element, text, dimOpacity) {
     let x = area.x;
     if (style.align === 'center') x = area.x + (area.w - line.width) / 2;
     else if (style.align === 'right') x = area.x + area.w - line.width;
+    else if (style.align === 'justify' && line.wrapped && line.words > 1) {
+      // Full lines stretch to both edges; the last line and lines that end at a break stay left
+      const gap = measure(' ', style) + (area.w - line.width) / (line.words - 1);
+      for (const t of line.tokens) {
+        ctx.fillStyle = rgba(style.color, t.dim ? dimOpacity : 1);
+        ctx.fillText(t.word, x, baseline);
+        x += measure(t.word, style) + gap;
+      }
+      return;
+    }
     for (const piece of line.pieces) {
       ctx.fillStyle = rgba(style.color, piece.dim ? dimOpacity : 1);
       ctx.fillText(piece.text, x, baseline);

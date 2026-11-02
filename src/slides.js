@@ -34,6 +34,7 @@ export const KIND_LABELS = {
   quote: 'Quote',
   point: 'Point',
   text: 'Text',
+  nameplate: 'Nameplate',
   blank: 'Blank',
   placeholder: 'Placeholder',
 };
@@ -41,7 +42,17 @@ export const KIND_LABELS = {
 export function layoutForKind(kind) {
   if (kind === 'scripture' || kind === 'quote') return 'scripture';
   if (kind === 'placeholder') return null;
+  if (kind === 'nameplate') return 'nameplate';
   return 'point';
+}
+
+/**
+ * The nameplate (themes that have one): the communicator's name, with the
+ * sermon title in the second box. Comes from the request file's header.
+ */
+export function nameplateSlide(header = {}) {
+  const name = (header.communicator || '').trim();
+  return makeSlide('nameplate', { text: name, source: name, reference: (header.title || '').trim() });
 }
 
 /** Strip the outer quote marks a manuscript puts around a quote. */
@@ -189,7 +200,7 @@ export function buildSlides(parsed) {
 export function layoutSlides(slides, layouts, measure, metricsFor) {
   const out = [];
   for (const slide of slides) {
-    if (slide.edited || !slide.layout || slide.kind === 'blank') {
+    if (slide.edited || !slide.layout || slide.kind === 'blank' || slide.kind === 'nameplate') {
       out.push(slide);
       continue;
     }

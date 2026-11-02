@@ -141,7 +141,15 @@ The PNG export is a backup. It produces transparent 3840×2160 images that can b
 
 A theme is a folder in `src/themes/`. It holds a copy of the ProPresenter theme file (`Theme.bin`), its image assets, and an `index.js` that says which template slide and text boxes each kind of slide uses, and which bundled web fonts stand in for the theme's fonts. Text box positions, sizes, fonts, alignment, line spacing and colors are read from the theme file itself.
 
-Currently included: **Sunday Acts - Fall** (Lato Light text, Oswald SemiBold references). Sunday Generic and NOPAW come next.
+Currently included:
+- **Sunday - Life of Jacob:** Gotham text with Acros references above the verse (justified), and a nameplate.
+- **Sunday Acts - Fall:** Lato Light text, Oswald SemiBold references.
+
+Sunday Generic and NOPAW come next. The Theme menu remembers the last theme used.
+
+**Nameplate.** When the theme has a nameplate slide, the deck starts with one: the communicator's name, with the sermon title beneath, both taken from the request file's `# communicator:` and `# title:` lines. Edit it on the slide like any other. With a theme that has no nameplate, it falls back to the Point layout.
+
+**Licensed fonts.** Free fonts (Lato, Oswald) are bundled. Licensed ones (Gotham and Acros for Life of Jacob) are never committed. The browser uses the copies installed on the computer, so install them on the machine that builds the slides. On a development Mac, the files in `reference/fonts/` (gitignored) also work. Where a font is missing, the panel says so, the preview uses Lato and line breaks may differ, but the ProPresenter bundle still names the theme's fonts. A theme declares a licensed font in its `fonts` map with `local` (installed names) and `file` (the name in `reference/fonts/`).
 
 ## Project layout
 
@@ -158,6 +166,7 @@ src/propresenter.js             live-text .pro / .probundle export
 src/protobuf.js                 small schema-less protobuf reader/writer
 src/links.js                    #outline= and #review= links
 src/themes/acts-fall/           theme file, content bar, layout config
+src/themes/life-of-jacob/       theme file, layout config (nameplate, licensed fonts)
 src/fonts/                      Lato and Oswald (SIL Open Font License)
 scripts/niv84.js                NIV 84 PDF -> JSON (macOS; uses scripts/pdf-runs.swift)
 scripts/rvbible.js              ProPresenter .rvbible files -> JSON, one per translation

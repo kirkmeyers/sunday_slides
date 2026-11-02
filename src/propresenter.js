@@ -199,6 +199,7 @@ const GROUP_COLORS = {
   quote: [0.55, 0.36, 0.67],
   point: [0.85, 0.6, 0.15],
   text: [0.3, 0.6, 0.45],
+  nameplate: [0.55, 0.45, 0.3],
   blank: [0.25, 0.25, 0.25],
   placeholder: [0.8, 0.25, 0.4],
 };
@@ -209,6 +210,7 @@ export function slideLabel(slide) {
     case 'scripture': return slide.ref ? `${referenceLabel(slide)} v${slide.ref.verse}` : slide.reference;
     case 'quote': return `Quote – ${slide.reference || 'unknown'}`;
     case 'placeholder': return `PLACEHOLDER: ${slide.text}`;
+    case 'nameplate': return `Nameplate – ${firstLine}`;
     case 'blank': return '';
     default: return firstLine.length > 60 ? firstLine.slice(0, 57) + '…' : firstLine;
   }

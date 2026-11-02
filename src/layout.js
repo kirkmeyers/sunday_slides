@@ -59,14 +59,16 @@ export function wrapLines(text, maxWidth, measure, style) {
   const space = measure(' ', style);
   const lineWidth = words => words.reduce((w, t, i) => w + measure(t.word, style) + (i ? space : 0), 0);
 
-  const flush = () => {
+  // `wrapped` marks a line that ended because it was full (not at a line
+  // break or the end), which is the kind justified text stretches
+  const flush = (wrapped = false) => {
     const pieces = [];
     for (const t of cur) {
       const last = pieces[pieces.length - 1];
       if (last && last.dim === t.dim) last.text += ' ' + t.word;
       else pieces.push({ text: (pieces.length ? ' ' : '') + t.word, dim: t.dim });
     }
-    lines.push({ pieces, width: lineWidth(cur), words: cur.length });
+    lines.push({ pieces, width: lineWidth(cur), words: cur.length, tokens: cur, wrapped });
     cur = [];
   };
 
@@ -75,7 +77,7 @@ export function wrapLines(text, maxWidth, measure, style) {
       flush();
       continue;
     }
-    if (cur.length && lineWidth([...cur, t]) > maxWidth) flush();
+    if (cur.length && lineWidth([...cur, t]) > maxWidth) flush(true);
     cur.push(t);
   }
   if (cur.length || lines.length === 0) flush();

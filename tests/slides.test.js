@@ -171,3 +171,20 @@ test('strips Strong’s numbers and footnote letters from Bolls text', async () 
   assert.equal(cleanVerseText(stripStudyMarkers('And<S>2532</S> now<S>3569</S> I exhort<S>3867</S> you', 'KJV')), 'And now I exhort you');
   assert.equal(cleanVerseText(stripStudyMarkers('For God<sup>a</sup> so loved ⓑ the world', 'CSB17')), 'For God so loved the world');
 });
+
+test('a nameplate takes the communicator and sermon title from the header', async () => {
+  const { nameplateSlide, layoutForKind } = await import('../src/slides.js');
+  const slide = nameplateSlide({ communicator: 'Timothy Ateek', title: 'Wrestling with God' });
+  assert.equal(slide.kind, 'nameplate');
+  assert.equal(slide.text, 'Timothy Ateek');
+  assert.equal(slide.reference, 'Wrestling with God');
+  assert.equal(layoutForKind('nameplate'), 'nameplate');
+});
+
+test('wrapped lines are marked for justified text; the last line and lines before a break are not', async () => {
+  const { wrapLines } = await import('../src/layout.js');
+  const measure = s => s.length * 10;
+  // 10px a letter in a 100px box: "one two" | "three four" | "five" (break) | "six seven"
+  const lines = wrapLines('one two three four five\nsix seven', 100, measure, {});
+  assert.deepEqual(lines.map(l => l.wrapped), [true, true, false, false]);
+});
