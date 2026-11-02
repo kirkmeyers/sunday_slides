@@ -149,7 +149,11 @@ Sunday Generic and NOPAW come next. The Theme menu remembers the last theme used
 
 **Nameplate.** When the theme has a nameplate slide, the deck starts with one: the communicator's name, with the sermon title beneath, both taken from the request file's `# communicator:` and `# title:` lines. Edit it on the slide like any other. With a theme that has no nameplate, it falls back to the Point layout.
 
-**Licensed fonts.** Free fonts (Lato, Oswald) are bundled. Licensed ones (Gotham and Acros for Life of Jacob) are never committed. The browser uses the copies installed on the computer, so install them on the machine that builds the slides. On a development Mac, the files in `reference/fonts/` (gitignored) also work. Where a font is missing, the panel says so, the preview uses Lato and line breaks may differ, but the ProPresenter bundle still names the theme's fonts. A theme declares a licensed font in its `fonts` map with `local` (installed names) and `file` (the name in `reference/fonts/`).
+**Licensed fonts.** Free fonts (Lato, Oswald) are bundled. Licensed ones (Gotham and Acros for Life of Jacob) are never committed or published. There are two ways to give the preview the real fonts on a computer:
+- **Settings → Theme fonts → Load font files:** choose the font files (`Gotham-Book.otf`, `Gotham-Light.otf`, `Acros.ttf`) once. The browser keeps them (IndexedDB), and this works in any browser without installing anything. It's the same approach as Porch Slides' Neue Haas Grotesk.
+- **Install them with Font Book:** Chrome picks up installed fonts after a restart. Safari doesn't let pages use fonts you install, and fonts activated through Adobe Fonts are hidden from all browsers, so use the Settings route there.
+
+On a development Mac, the files in `reference/fonts/` (gitignored) also work. Where a font is missing, the panel says so, the preview uses Lato and line breaks may differ, but the ProPresenter bundle still names the theme's fonts. A theme declares a licensed font in its `fonts` map with `local` (installed names) and `file` (the name in `reference/fonts/`).
 
 ## Project layout
 
@@ -158,6 +162,7 @@ index.html, app.js, style.css   UI
 src/requests.js                 request file parser
 src/bible.js                    references, verse splitting, poetry, Bolls API, ESV comparison
 src/local-bibles.js             translation files kept in the browser (NIV 84, ProPresenter Bibles)
+src/local-fonts.js              licensed theme font files kept in the browser
 src/slides.js                   entries -> slides, automatic line breaks and splits
 src/layout.js                   text wrapping, balancing, fitting
 src/render.js                   canvas drawing for the preview and PNGs

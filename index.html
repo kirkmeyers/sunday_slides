@@ -77,6 +77,15 @@
             <button class="btn" id="btn-load-bibles">Load translation files</button>
             <input type="file" id="bibles-input" accept=".json,application/json" multiple hidden />
           </div>
+          <div class="field">
+            <span>Theme fonts <small>licensed, never published</small></span>
+            <div class="verify-status" id="font-file-status"></div>
+            <div class="field-row">
+              <button class="btn grow" id="btn-load-fonts">Load font files</button>
+              <button class="btn" id="btn-remove-fonts" hidden>Remove</button>
+            </div>
+            <input type="file" id="fonts-input" accept=".otf,.ttf,font/otf,font/ttf" multiple hidden />
+          </div>
         </details>
 
         <section class="card">

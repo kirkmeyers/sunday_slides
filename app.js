@@ -4,6 +4,7 @@ import { buildSlides, layoutSlides, layoutForKind, newId, KIND_LABELS, passageSl
 import { parseTheme, resolveLayouts } from './src/theme.js';
 import { setFontMap, measure, fontMetrics, clearMetricsCache, drawSlide, renderSlidePng } from './src/render.js';
 import { fetchChapter, compareVerse, canFetchTranslation, textSource, translationName, TRANSLATIONS } from './src/bible.js';
+import { restoreLocalFonts, saveLocalFont, removeLocalFont, fontNames } from './src/local-fonts.js';
 import { restoreLocalBibles, saveLocalBible, removeLocalBible, validateBible, verseCount } from './src/local-bibles.js';
 import { parseRuns, plainText, wrapLines, textArea, applyCase, maxLinesFor, setDim, isAllDim, sliceText } from './src/layout.js';
 import { createTextBox, bindEditable, textToHtml, selectionOffsets, setSelectionOffsets } from './src/inline-editor.js';
@@ -16,6 +17,15 @@ import lifeOfJacob from './src/themes/life-of-jacob/index.js';
 import sampleRequests from './reference/20261025_DAL_requests.txt?raw';
 
 const THEMES = [lifeOfJacob, actsFall];
+
+// Licensed fonts across all themes (Gotham, Acros): each theme font with
+// installed names (`local`), keyed by its PostScript name
+const LICENSED_FONTS = [];
+for (const theme of THEMES) {
+  for (const [postScriptName, f] of Object.entries(theme.fonts)) {
+    if (f.local && !LICENSED_FONTS.some(l => l.postScriptName === postScriptName)) LICENSED_FONTS.push({ ...f, postScriptName });
+  }
+}
 
 // ---------- State ----------
 const state = {
@@ -104,10 +114,11 @@ const SPINNER = '<svg class="btn-icon btn-spinner" width="16" height="16" viewBo
  * (gitignored). Returns the families that couldn't be found.
  */
 const fontFaces = {};
+const hasFont = f => [...document.fonts].some(face => face.family.replace(/["']/g, '') === f.family && String(face.weight) === String(f.weight) && face.status === 'loaded');
 async function loadLicensedFonts(config) {
   const missing = new Set();
   for (const f of Object.values(config.fonts)) {
-    if (!f.local) continue;
+    if (!f.local || hasFont(f)) continue; // already here, e.g. loaded in Settings
     const key = `${f.family} ${f.weight}`;
     if (!fontFaces[key]) {
       const sources = [...f.local.map(n => `local('${n}')`), `url('reference/fonts/${f.file}')`].join(', ');
@@ -1167,6 +1178,19 @@ function bindEvents() {
     $('slide-layer').style.setProperty('--dim', state.dimOpacity);
   });
   $('dim-opacity').addEventListener('change', () => state.view === 'grid' && renderGrid());
+  $('btn-load-fonts').addEventListener('click', () => $('fonts-input').click());
+  $('fonts-input').addEventListener('change', async e => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) await loadFontFiles(files);
+  });
+  $('btn-remove-fonts').addEventListener('click', async () => {
+    if (!confirm('Remove the theme font files from this browser?')) return;
+    for (const f of storedFonts) await removeLocalFont(f.family, f.weight);
+    storedFonts = [];
+    renderFontFiles();
+    showToast('Font files removed from this browser. Reload the page to see the stand-in.');
+  });
   $('btn-load-bibles').addEventListener('click', () => $('bibles-input').click());
   $('bibles-input').addEventListener('change', async e => {
     const files = [...e.target.files];
@@ -1193,6 +1217,62 @@ function bindEvents() {
   });
 
   window.addEventListener('hashchange', loadFromHash);
+}
+
+// ---------- Theme font files (Settings) ----------
+// Licensed fonts loaded once per browser, like the translation files (and Porch Slides' Neue Haas)
+let storedFonts = []; // [{ family, weight, name }] kept in this browser
+
+function fontLabel(f) {
+  return f.local[0];
+}
+
+function renderFontFiles() {
+  const stored = LICENSED_FONTS.filter(f => storedFonts.some(s => s.family === f.family && String(s.weight) === String(f.weight)));
+  const needed = LICENSED_FONTS.filter(f => !hasFont(f));
+  const parts = [];
+  if (stored.length) parts.push(`Loaded in this browser: ${stored.map(fontLabel).join(', ')}.`);
+  if (needed.length) parts.push(`Not on this computer: ${needed.map(fontLabel).join(', ')}. Install them, or load the font files here once.`);
+  if (!parts.length) parts.push(`Installed on this computer: ${LICENSED_FONTS.map(fontLabel).join(', ')}.`);
+  $('font-file-status').textContent = parts.join(' ');
+  $('btn-remove-fonts').hidden = !stored.length;
+}
+
+async function loadFontFiles(files) {
+  const loaded = [];
+  const skipped = [];
+  for (const file of files) {
+    const data = await file.arrayBuffer();
+    let names;
+    try {
+      names = fontNames(data);
+    } catch {
+      skipped.push(file.name);
+      continue;
+    }
+    const font = LICENSED_FONTS.find(f => f.postScriptName === names.postScriptName || f.local.includes(names.fullName));
+    if (!font) {
+      skipped.push(file.name);
+      continue;
+    }
+    try {
+      await saveLocalFont({ family: font.family, weight: font.weight, name: fontLabel(font), data });
+      storedFonts = [...storedFonts.filter(s => !(s.family === font.family && String(s.weight) === String(font.weight))), { family: font.family, weight: font.weight, name: fontLabel(font) }];
+      loaded.push(fontLabel(font));
+    } catch (err) {
+      console.error(err);
+      skipped.push(file.name);
+    }
+  }
+  if (loaded.length) {
+    // Measure everything again with the real fonts
+    await loadTheme(state.theme);
+    state.slides = relayout(state.slides);
+    renderAll();
+  }
+  renderFontFiles();
+  if (loaded.length) showToast(`Loaded ${loaded.join(', ')} on this computer.`);
+  if (skipped.length) showToast(`Not a theme font: ${skipped.join(', ')}. The themes use ${LICENSED_FONTS.map(fontLabel).join(', ')}.`, 'warn', 7000);
 }
 
 // ---------- Translation files (Settings) ----------
@@ -1252,10 +1332,12 @@ async function init() {
   $('dim-value').textContent = `${Math.round(state.dimOpacity * 100)}%`;
   $('verify-esv').checked = storageGet('verifyEsv', true);
   $('theme-select').innerHTML = THEMES.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  storedFonts = await restoreLocalFonts(); // before the theme, so its fonts count as present
   const theme = THEMES.find(t => t.id === storageGet('theme', '')) || THEMES[0];
   await loadTheme(theme);
   $('theme-select').value = theme.id;
   renderLocalBibles(await restoreLocalBibles());
+  renderFontFiles();
   bindEvents();
   renderAll();
   await loadFromHash();
